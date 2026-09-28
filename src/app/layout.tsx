@@ -1,12 +1,18 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
-import { APP_NAME, PARENT_SITE_NAME } from "@/lib/config";
 
 export const metadata: Metadata = {
-  title: `${APP_NAME} – Free Background Remover & Image Editor | ${PARENT_SITE_NAME}`,
+  title: {
+    default: "Clipping World - Cutout Studio",
+    template: "%s",
+  },
   description:
     "Remove image backgrounds in your browser, refine the cutout, replace the background, adjust colours, resize, add shadows, compress and export PNG, JPG or WebP.",
+  icons: {
+    icon: "/icon.png",
+    apple: "/apple-icon.png",
+  },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0733eb" };

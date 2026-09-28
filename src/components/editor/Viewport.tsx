@@ -352,7 +352,7 @@ export default function Viewport() {
       aria-label="View controls"
       onPointerDown={(ev) => ev.stopPropagation()}
       onWheel={(ev) => ev.stopPropagation()}
-      className="pointer-events-auto flex max-w-full items-center gap-2 overflow-x-auto no-scrollbar rounded-2xl border border-white/70 bg-[#e9efff]/90 px-3 py-2 shadow-[0_12px_32px_rgba(7,51,235,0.16)] backdrop-blur-xl"
+      className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 overflow-visible rounded-2xl border border-white/70 bg-[#e9efff]/90 px-3 py-2 shadow-[0_12px_32px_rgba(7,51,235,0.16)] backdrop-blur-xl"
     >
       <div className="flex shrink-0 items-center gap-1 rounded-xl border border-[#d7e4ff] bg-white p-1 shadow-sm" role="group" aria-label="Before and after">
         <button
@@ -542,16 +542,49 @@ export default function Viewport() {
 }
 
 function Tip({ text, children }: { text: string; children: React.ReactNode }) {
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState<{ x: number; y: number; below: boolean } | null>(null);
+  const show = () => {
+    const el = anchorRef.current;
+    if (!el || typeof window === "undefined") return;
+    const r = el.getBoundingClientRect();
+    // Prefer below the button; flip above only if there is no room underneath.
+    const below = r.bottom + 48 < window.innerHeight;
+    const x = Math.min(Math.max(r.left + r.width / 2, 120), window.innerWidth - 120);
+    setPos({ x, y: below ? r.bottom + 8 : r.top - 8, below });
+  };
+  const hide = () => setPos(null);
   return (
-    <span className="group relative inline-flex shrink-0">
+    <span
+      ref={anchorRef}
+      className="relative inline-flex shrink-0"
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
+    >
       {children}
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-[#232a3b] px-2.5 py-1.5 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
-      >
-        {text}
-        <span aria-hidden className="absolute left-1/2 top-full -translate-x-1/2 border-[5px] border-transparent border-t-[#232a3b]" />
-      </span>
+      {pos &&
+        createPortal(
+          <span
+            role="tooltip"
+            style={{
+              left: pos.x,
+              top: pos.y,
+              transform: pos.below ? "translate(-50%, 0)" : "translate(-50%, -100%)",
+            }}
+            className="pointer-events-none fixed z-[100] whitespace-nowrap rounded-lg bg-[#232a3b] px-2.5 py-1.5 text-[11px] font-medium text-white shadow-lg"
+          >
+            {text}
+            <span
+              aria-hidden
+              className={`absolute left-1/2 -translate-x-1/2 border-[5px] border-transparent ${
+                pos.below ? "bottom-full border-b-[#232a3b]" : "top-full border-t-[#232a3b]"
+              }`}
+            />
+          </span>,
+          document.body,
+        )}
     </span>
   );
 }

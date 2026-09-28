@@ -72,8 +72,19 @@ export function ShadowPanel() {
         {csl("offsetY", "Vertical offset", -200, 200, 0, "px")}
       </Section>
       <Section title="Avoid clipping">
-        <div className="flex gap-2">
-          {[40, 100, 200].map((p) => <Button key={p} size="sm" onClick={() => set((x) => padCanvas(x, p), "add padding")}>+{p}px padding</Button>)}
+        <p className="text-xs leading-relaxed text-muted">Add empty space around the canvas so shadows are not cut off at the edges.</p>
+        <div className="grid grid-cols-3 gap-2.5 pt-1">
+          {[40, 100, 200].map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => set((x) => padCanvas(x, p), "add padding")}
+              className="flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-xl border border-[#d7e4ff] bg-white px-2 py-2.5 text-center transition-colors hover:border-[#0733eb] hover:bg-[#eef4ff] focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              <span className="text-[13px] font-semibold leading-none text-[#2e44a7]">+{p}px</span>
+              <span className="text-[11px] leading-none text-muted">padding</span>
+            </button>
+          ))}
         </div>
       </Section>
     </>
