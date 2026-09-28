@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+/* Clipping World theme tokens — brand blues #0733EB / #156DE3 / #2E44A7 */
+@theme {
+  --color-brand: #0733eb;
+  --color-brand-dark: #2e44a7;
+  --color-brand-blue: #156de3;
+  --color-brand-sky: #156de3;
+  --color-accent: #0733eb;
+  --color-accent-dark: #2e44a7;
+  --color-surface: #f8f6fa;
+  --color-surface-2: #f6f7f9;
+  --color-ink: #0c0c0c;
+  --color-ink-2: #1e293b;
+  --color-ink-3: #334155;
+  --color-muted: #64748b;
+  --color-line: #d1d5db;
+  --color-line-soft: #e5e7eb;
+  --color-danger: #b00000;
+  --font-sans: "Poppins", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html, body { font-family: var(--font-sans); color: var(--color-ink-2); }
+
+.checker {
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+    linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+    linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+
+.hero-gradient { background: linear-gradient(135deg, #2e44a7 0%, #0733eb 55%, #156de3 100%); }
+
+:focus-visible { outline: 3px solid #0733eb; outline-offset: 2px; border-radius: 6px; }
+
+/* Touch-friendly range inputs — track fills with brand blue up to the value */
+input[type="range"] { -webkit-appearance: none; appearance: none; height: 28px; background: transparent; width: 100%; cursor: pointer; --fill-from: 0%; --fill-to: 0%; }
+input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 999px; background: linear-gradient(to right, #d7e4ff 0%, #d7e4ff var(--fill-from), #0733eb var(--fill-from), #156de3 var(--fill-to), #d7e4ff var(--fill-to)); }
+input[type="range"]::-moz-range-track { height: 6px; border-radius: 999px; background: #d7e4ff; }
+input[type="range"]::-moz-range-progress { height: 6px; border-radius: 999px; background: linear-gradient(to right, #0733eb, #156de3); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; margin-top: -7px; border-radius: 50%; background: #0733eb; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(15, 23, 42, .35); }
+input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #0733eb; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(15, 23, 42, .35); }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+/* Background-removal scan + reveal animations */
+.reveal-scan { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.reveal-scan-bar {
+  position: absolute; top: 0; bottom: 0; width: 90px;
+  background: linear-gradient(90deg, transparent, rgba(7,51,235,.12) 20%, rgba(7,51,235,.45) 50%, rgba(7,51,235,.12) 80%, transparent);
+  animation: reveal-scan-x 1.5s ease-in-out infinite;
+}
+.reveal-scan-line {
+  position: absolute; top: 0; bottom: 0; width: 2px;
+  background: rgba(7,51,235,.8);
+  box-shadow: 0 0 12px rgba(7,51,235,.9);
+  animation: reveal-scan-x 1.5s ease-in-out infinite;
+}
+@keyframes reveal-scan-x {
+  0% { left: -100px; }
+  50% { left: calc(100% + 10px); }
+  100% { left: -100px; }
+}
+.reveal-sweep-glow {
+  background: linear-gradient(90deg, transparent, rgba(7,51,235,.28));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+}
