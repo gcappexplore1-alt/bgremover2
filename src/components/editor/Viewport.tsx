@@ -1,4 +1,3 @@
-"use client";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeftRight, Columns2, Maximize, Minus, Plus } from "lucide-react";
@@ -25,10 +24,13 @@ export default function Viewport() {
   const [space, setSpace] = useState(false);
   const [paintTick, setPaintTick] = useState(0);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
-  useEffect(() => { setSlot(document.getElementById("viewport-toolbar-slot")); }, []);
+  useEffect(() => {
+    setSlot(document.getElementById("viewport-toolbar-slot"));
+  }, []);
   // Reveal sweep 0..100 while the cutout is unveiled; null when idle.
   const [reveal, setReveal] = useState<number | null>(null);
-  const zoomRef = useRef(zoom); const panRef = useRef(pan);
+  const zoomRef = useRef(zoom);
+  const panRef = useRef(pan);
   const canCompareRef = useRef(canCompare);
   canCompareRef.current = canCompare;
   // Keep gesture positions synchronous. Reading a mutable gesture ref from inside a
@@ -52,7 +54,8 @@ export default function Viewport() {
     cancelAnimationFrame(revealRaf.current);
     setReveal(null);
     setHoldOrig(false);
-    zoomView(1); moveView({ x: 0, y: 0 });
+    zoomView(1);
+    moveView({ x: 0, y: 0 });
     setCompare(project?.maskInputKey ? "side" : "off");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
@@ -102,18 +105,22 @@ export default function Viewport() {
   }, [seg]);
 
   useLayoutEffect(() => {
-    const el = wrap.current; if (!el) return;
+    const el = wrap.current;
+    if (!el) return;
     const ro = new ResizeObserver(([en]) => setSize({ w: en.contentRect.width, h: en.contentRect.height }));
-    ro.observe(el); return () => ro.disconnect();
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
-  const cw = state?.canvas.width ?? 1, ch = state?.canvas.height ?? 1;
+  const cw = state?.canvas.width ?? 1,
+    ch = state?.canvas.height ?? 1;
   const side = compare === "side";
   // The reveal sweep always plays in a single frame, even if side view was selected.
   const displaySide = side && !revealActive;
   const availW = displaySide ? size.w / 2 - 12 : size.w - 24;
   const fit = Math.max(0.01, Math.min(availW / cw, (size.h - 24) / ch));
-  const boxW = cw * fit, boxH = ch * fit;
+  const boxW = cw * fit,
+    boxH = ch * fit;
   const dpr = typeof window !== "undefined" ? Math.min(3, window.devicePixelRatio || 1) : 1;
   const bucket = Math.pow(2, Math.ceil(Math.log2(Math.max(1, zoom))));
   const k = Math.min(1, fit * bucket * dpr, 3000 / Math.max(cw, ch));
@@ -121,7 +128,9 @@ export default function Viewport() {
   // Render preview (same pipeline as export, smaller k). rAF-coalesced.
   const raf = useRef(0);
   const sayRef = useRef(e.say);
-  useEffect(() => { sayRef.current = e.say; }, [e.say]);
+  useEffect(() => {
+    sayRef.current = e.say;
+  }, [e.say]);
   useEffect(() => {
     if (!state || !renderer.working) return;
     cancelAnimationFrame(raf.current);
@@ -129,32 +138,48 @@ export default function Viewport() {
       try {
         const out = renderer.render(state, k, { overlay: overlay && tool === "cutout" });
         for (const c of [editedRef.current]) {
-          if (!c) continue; c.width = out.width; c.height = out.height; ctx2d(c).drawImage(out, 0, 0);
+          if (!c) continue;
+          c.width = out.width;
+          c.height = out.height;
+          ctx2d(c).drawImage(out, 0, 0);
         }
         const needOrig = compare !== "off" || holdOrig || revealActive;
         if (needOrig) {
           const o = renderer.renderOriginal(state, k);
           for (const c of [origRef.current, origSideRef.current]) {
-            if (!c) continue; c.width = o.width; c.height = o.height; ctx2d(c).drawImage(o, 0, 0);
+            if (!c) continue;
+            c.width = o.width;
+            c.height = o.height;
+            ctx2d(c).drawImage(o, 0, 0);
           }
         }
-      } catch (err) { sayRef.current(err instanceof Error ? err.message : "Preview failed"); }
+      } catch (err) {
+        sayRef.current(err instanceof Error ? err.message : "Preview failed");
+      }
     });
     return () => cancelAnimationFrame(raf.current);
   }, [state, maskTick, shadowTick, bgTick, overlay, tool, k, compare, holdOrig, paintTick, renderer, revealActive]);
 
-  const zoomAt = useCallback((px: number, py: number, nz: number) => {
-    const z = zoomRef.current, p = panRef.current;
-    nz = Math.min(16, Math.max(0.1, nz));
-    if (nz === z) return;
-    // Keep the pixel beneath the zoom anchor in the same screen position.
-    moveView({ x: px - (px - p.x) * (nz / z), y: py - (py - p.y) * (nz / z) });
-    zoomView(nz);
+  const zoomAt = useCallback(
+    (px: number, py: number, nz: number) => {
+      const z = zoomRef.current,
+        p = panRef.current;
+      nz = Math.min(16, Math.max(0.1, nz));
+      if (nz === z) return;
+      // Keep the pixel beneath the zoom anchor in the same screen position.
+      moveView({ x: px - (px - p.x) * (nz / z), y: py - (py - p.y) * (nz / z) });
+      zoomView(nz);
+    },
+    [moveView, zoomView],
+  );
+  const fitView = useCallback(() => {
+    zoomView(1);
+    moveView({ x: 0, y: 0 });
   }, [moveView, zoomView]);
-  const fitView = useCallback(() => { zoomView(1); moveView({ x: 0, y: 0 }); }, [moveView, zoomView]);
 
   useEffect(() => {
-    const el = wrap.current; if (!el) return;
+    const el = wrap.current;
+    if (!el) return;
     const onWheel = (ev: WheelEvent) => {
       ev.preventDefault();
       const r = el.getBoundingClientRect();
@@ -173,79 +198,126 @@ export default function Viewport() {
     const kd = (ev: KeyboardEvent) => {
       const t = ev.target as HTMLElement;
       if (t.closest("input,textarea,select,[contenteditable]")) return;
-      if (ev.code === "Space") { setSpace(true); if (t === document.body || t.closest("[data-viewport]")) ev.preventDefault(); }
+      if (ev.code === "Space") {
+        setSpace(true);
+        if (t === document.body || t.closest("[data-viewport]")) ev.preventDefault();
+      }
       if (ev.key === "\\" && canCompareRef.current) setHoldOrig(true);
       if (ev.metaKey || ev.ctrlKey) return;
       if (ev.key === "+" || ev.key === "=") zoomAt(0, 0, zoomRef.current * 1.25);
       if (ev.key === "-") zoomAt(0, 0, zoomRef.current / 1.25);
       if (ev.key === "0") fitView();
     };
-    const ku = (ev: KeyboardEvent) => { if (ev.code === "Space") setSpace(false); if (ev.key === "\\") setHoldOrig(false); };
-    window.addEventListener("keydown", kd); window.addEventListener("keyup", ku);
-    return () => { window.removeEventListener("keydown", kd); window.removeEventListener("keyup", ku); };
+    const ku = (ev: KeyboardEvent) => {
+      if (ev.code === "Space") setSpace(false);
+      if (ev.key === "\\") setHoldOrig(false);
+    };
+    window.addEventListener("keydown", kd);
+    window.addEventListener("keyup", ku);
+    return () => {
+      window.removeEventListener("keydown", kd);
+      window.removeEventListener("keyup", ku);
+    };
   }, [zoomAt, fitView]);
 
   // ---- pointer handling: brush, pan, pinch ----
   const pointers = useRef(new Map<number, { x: number; y: number }>());
-  const gesture = useRef<{ kind: "pan" | "pinch" | "paint"; d0?: number; z0?: number; p0?: { x: number; y: number }; m0?: { x: number; y: number }; last?: { x: number; y: number } } | null>(null);
-  const strokeRef = useRef<{ base: Uint8Array; hadMask: boolean; buf: Uint8Array; last: { x: number; y: number } | null; erase: boolean; target: "mask" | "shadow"; w: number; h: number; touched: boolean; dirty: MaskRect | null } | null>(null);
+  const gesture = useRef<{
+    kind: "pan" | "pinch" | "paint";
+    d0?: number;
+    z0?: number;
+    p0?: { x: number; y: number };
+    m0?: { x: number; y: number };
+    last?: { x: number; y: number };
+  } | null>(null);
+  const strokeRef = useRef<{
+    base: Uint8Array;
+    hadMask: boolean;
+    buf: Uint8Array;
+    last: { x: number; y: number } | null;
+    erase: boolean;
+    target: "mask" | "shadow";
+    w: number;
+    h: number;
+    touched: boolean;
+    dirty: MaskRect | null;
+  } | null>(null);
   const paintingMask = tool === "cutout" && !!brushMode && !holdOrig && !isBusy && !revealActive;
   const paintingShadow = tool === "shadow" && !!shadowBrush && !holdOrig && !isBusy && !revealActive;
   const painting = paintingMask || paintingShadow;
 
-  const rel = (ev: React.PointerEvent) => { const r = wrap.current!.getBoundingClientRect(); return { x: ev.clientX - r.left - r.width / 2, y: ev.clientY - r.top - r.height / 2 }; };
+  const rel = (ev: React.PointerEvent) => {
+    const r = wrap.current!.getBoundingClientRect();
+    return { x: ev.clientX - r.left - r.width / 2, y: ev.clientY - r.top - r.height / 2 };
+  };
 
   const dabAt = (clientX: number, clientY: number) => {
-    const st = strokeRef.current, c = editedRef.current; if (!st || !c || !state) return;
+    const st = strokeRef.current,
+      c = editedRef.current;
+    if (!st || !c || !state) return;
     const r = c.getBoundingClientRect();
-    const cx = ((clientX - r.left) / r.width) * cw, cy = ((clientY - r.top) / r.height) * ch;
+    const cx = ((clientX - r.left) / r.width) * cw,
+      cy = ((clientY - r.top) / r.height) * ch;
     if (st.target === "shadow") {
       // Shadow edits live in canvas space, so no subject-transform mapping is needed.
       const radius = (brush.size / 2) * (cw / r.width);
       const pts: { x: number; y: number }[] = [];
       if (st.last) {
-        const dist = Math.hypot(cx - st.last.x, cy - st.last.y), step = Math.max(0.5, radius * 0.25);
+        const dist = Math.hypot(cx - st.last.x, cy - st.last.y),
+          step = Math.max(0.5, radius * 0.25);
         for (let s = step; s < dist; s += step) pts.push({ x: st.last.x + ((cx - st.last.x) * s) / dist, y: st.last.y + ((cy - st.last.y) * s) / dist });
       }
       pts.push({ x: cx, y: cy });
-      for (const p of pts) if (paintDab(renderer.shadowErase!, st.base, st.buf, cw, ch, { x: p.x, y: p.y, radius, hardness: brush.hardness, opacity: brush.opacity }, st.erase)) st.touched = true;
+      for (const p of pts)
+        if (paintDab(renderer.shadowErase!, st.base, st.buf, cw, ch, { x: p.x, y: p.y, radius, hardness: brush.hardness, opacity: brush.opacity }, st.erase)) st.touched = true;
       st.last = { x: cx, y: cy };
-      renderer.bumpShadow(); setPaintTick((t) => t + 1);
+      renderer.bumpShadow();
+      setPaintTick((t) => t + 1);
       return;
     }
     const m = renderer.canvasToMask(state, cx, cy);
     const radius = ((brush.size / 2) * (cw / r.width)) / m.scale;
     const pts: { x: number; y: number }[] = [];
     if (st.last) {
-      const dist = Math.hypot(m.x - st.last.x, m.y - st.last.y), step = Math.max(0.5, radius * 0.25);
+      const dist = Math.hypot(m.x - st.last.x, m.y - st.last.y),
+        step = Math.max(0.5, radius * 0.25);
       for (let s = step; s < dist; s += step) pts.push({ x: st.last.x + ((m.x - st.last.x) * s) / dist, y: st.last.y + ((m.y - st.last.y) * s) / dist });
     }
     pts.push({ x: m.x, y: m.y });
     for (const p of pts) {
-      const rect = paintDab(renderer.mask!, st.base, st.buf, renderer.ww, renderer.wh,
-        { x: p.x, y: p.y, radius, hardness: brush.hardness, opacity: brush.opacity }, st.erase);
+      const rect = paintDab(renderer.mask!, st.base, st.buf, renderer.ww, renderer.wh, { x: p.x, y: p.y, radius, hardness: brush.hardness, opacity: brush.opacity }, st.erase);
       if (rect) {
         st.touched = true;
-        st.dirty = st.dirty ? {
-          x0: Math.min(st.dirty.x0, rect[0]), y0: Math.min(st.dirty.y0, rect[1]),
-          x1: Math.max(st.dirty.x1, rect[2]), y1: Math.max(st.dirty.y1, rect[3]),
-        } : { x0: rect[0], y0: rect[1], x1: rect[2], y1: rect[3] };
+        st.dirty = st.dirty
+          ? {
+              x0: Math.min(st.dirty.x0, rect[0]),
+              y0: Math.min(st.dirty.y0, rect[1]),
+              x1: Math.max(st.dirty.x1, rect[2]),
+              y1: Math.max(st.dirty.y1, rect[3]),
+            }
+          : { x0: rect[0], y0: rect[1], x1: rect[2], y1: rect[3] };
       }
     }
     st.last = { x: m.x, y: m.y };
-    renderer.bumpMask(); setPaintTick((t) => t + 1);
+    renderer.bumpMask();
+    setPaintTick((t) => t + 1);
   };
 
   const abortStroke = () => {
-    const st = strokeRef.current; if (!st) return;
+    const st = strokeRef.current;
+    if (!st) return;
     if (st.target === "shadow") {
-      if (st.hadMask) { renderer.shadowErase = st.base; renderer.shadowEraseW = st.w; renderer.shadowEraseH = st.h; }
-      else renderer.shadowErase = null;
+      if (st.hadMask) {
+        renderer.shadowErase = st.base;
+        renderer.shadowEraseW = st.w;
+        renderer.shadowEraseH = st.h;
+      } else renderer.shadowErase = null;
       renderer.bumpShadow();
     } else {
       renderer.setMask(st.hadMask ? st.base : null);
     }
-    strokeRef.current = null; setPaintTick((t) => t + 1);
+    strokeRef.current = null;
+    setPaintTick((t) => t + 1);
   };
 
   const onDown = (ev: React.PointerEvent) => {
@@ -255,7 +327,13 @@ export default function Viewport() {
     if (pointers.current.size === 2) {
       abortStroke();
       const [a, b] = [...pointers.current.values()];
-      gesture.current = { kind: "pinch", d0: Math.hypot(a.x - b.x, a.y - b.y), z0: zoomRef.current, p0: { ...panRef.current }, m0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+      gesture.current = {
+        kind: "pinch",
+        d0: Math.hypot(a.x - b.x, a.y - b.y),
+        z0: zoomRef.current,
+        p0: { ...panRef.current },
+        m0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      };
       return;
     }
     if (pointers.current.size > 2) return;
@@ -264,13 +342,26 @@ export default function Viewport() {
         renderer.ensureShadowDims(cw, ch);
         const had = !!renderer.shadowErase;
         const base = renderer.shadowErase ?? new Uint8Array(cw * ch).fill(255);
-        renderer.shadowErase = base.slice(); renderer.shadowEraseW = cw; renderer.shadowEraseH = ch;
+        renderer.shadowErase = base.slice();
+        renderer.shadowEraseW = cw;
+        renderer.shadowEraseH = ch;
         strokeRef.current = { base, hadMask: had, buf: new Uint8Array(cw * ch), last: null, erase: shadowBrush === "erase", target: "shadow", w: cw, h: ch, touched: false, dirty: null };
       } else {
         const hadMask = !!renderer.mask;
         const base = renderer.mask ?? new Uint8Array(renderer.ww * renderer.wh).fill(255);
         renderer.mask = base.slice();
-        strokeRef.current = { base, hadMask, buf: new Uint8Array(renderer.ww * renderer.wh), last: null, erase: brushMode === "erase", target: "mask", w: renderer.ww, h: renderer.wh, touched: false, dirty: null };
+        strokeRef.current = {
+          base,
+          hadMask,
+          buf: new Uint8Array(renderer.ww * renderer.wh),
+          last: null,
+          erase: brushMode === "erase",
+          target: "mask",
+          w: renderer.ww,
+          h: renderer.wh,
+          touched: false,
+          dirty: null,
+        };
       }
       gesture.current = { kind: "paint" };
       dabAt(ev.clientX, ev.clientY);
@@ -283,15 +374,18 @@ export default function Viewport() {
     if (painting) setCursor({ x: p.x, y: p.y });
     if (!pointers.current.has(ev.pointerId)) return;
     pointers.current.set(ev.pointerId, p);
-    const g = gesture.current; if (!g) return;
+    const g = gesture.current;
+    if (!g) return;
     if (g.kind === "pinch" && pointers.current.size >= 2) {
       const [a, b] = [...pointers.current.values()];
-      const d = Math.hypot(a.x - b.x, a.y - b.y), m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const d = Math.hypot(a.x - b.x, a.y - b.y),
+        m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       const nz = Math.min(16, Math.max(0.1, g.z0! * (d / Math.max(1, g.d0!))));
       moveView({ x: m.x - (g.m0!.x - g.p0!.x) * (nz / g.z0!), y: m.y - (g.m0!.y - g.p0!.y) * (nz / g.z0!) });
       zoomView(nz);
     } else if (g.kind === "pan" && g.last) {
-      const dx = p.x - g.last.x, dy = p.y - g.last.y;
+      const dx = p.x - g.last.x,
+        dy = p.y - g.last.y;
       g.last = p;
       if (dx || dy) {
         const prev = panRef.current;
@@ -319,16 +413,38 @@ export default function Viewport() {
       }
     }
     if (pointers.current.size === 0) gesture.current = null;
-    else if (g?.kind === "pinch") { const [a] = [...pointers.current.values()]; gesture.current = { kind: "pan", last: a }; }
+    else if (g?.kind === "pinch") {
+      const [a] = [...pointers.current.values()];
+      gesture.current = { kind: "pan", last: a };
+    }
   };
 
   const showOrig = holdOrig && !revealActive;
   const showScan = isBusy && !revealActive;
   const tf = `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`;
   const box = (children: React.ReactNode, label?: string) => (
-    <div className="absolute left-1/2 top-1/2" style={{ width: boxW, height: boxH, marginLeft: -boxW / 2, marginTop: -boxH / 2, transform: tf, transformOrigin: "center", willChange: "transform" }}>
+    <div
+      className="absolute left-1/2 top-1/2"
+      style={{ width: boxW, height: boxH, marginLeft: -boxW / 2, marginTop: -boxH / 2, transform: tf, transformOrigin: "center", willChange: "transform" }}
+    >
       {children}
-      {label && <span className="pointer-events-none absolute left-2 top-2 rounded-md bg-ink-2/80 px-2 py-0.5 text-[11px] font-medium text-white" style={{ transform: `scale(${1 / zoom})`, transformOrigin: "top left" }}>{label}</span>}
+      {label && (
+        <span
+          className="pointer-events-none absolute left-2 top-2 rounded-md bg-ink-2/80 px-2 py-0.5 text-[11px] font-medium text-white"
+          style={{ transform: `scale(${1 / zoom})`, transformOrigin: "top left" }}
+        >
+          {label}
+        </span>
+      )}
+    </div>
+  );
+
+  const scanBeam = (
+    <div className="reveal-scan" aria-hidden>
+      <div className="reveal-scan-beam">
+        <div className="reveal-scan-wash" />
+        <div className="reveal-scan-core" />
+      </div>
     </div>
   );
 
@@ -337,11 +453,21 @@ export default function Viewport() {
   const afterActive = !holdOrig;
   const splitActive = compare === "side";
   const wipeActive = compare === "slider";
-  const showBefore = () => { setHoldOrig(true); setCompare("off"); };
-  const showAfter = () => { setHoldOrig(false); };
+  const showBefore = () => {
+    setHoldOrig(true);
+    setCompare("off");
+  };
+  const showAfter = () => {
+    setHoldOrig(false);
+  };
   const toggleSplit = () => {
-    if (compare === "side") { setCompare("off"); setHoldOrig(false); }
-    else { setCompare("side"); setHoldOrig(false); }
+    if (compare === "side") {
+      setCompare("off");
+      setHoldOrig(false);
+    } else {
+      setCompare("side");
+      setHoldOrig(false);
+    }
   };
   const toggleWipe = () => {
     setCompare(compare === "slider" ? "off" : "slider");
@@ -396,6 +522,7 @@ export default function Viewport() {
       <span className="h-8 w-px shrink-0 bg-[#d3ddf7]" aria-hidden />
 
       <div className="flex h-9 shrink-0 items-center rounded-xl border border-[#d7e4ff] bg-white px-1 shadow-sm" role="group" aria-label="Zoom">
+        <span className="pl-2 pr-1 text-[13px] font-medium text-[#2e44a7]">Zoom</span>
         <button type="button" aria-label="Zoom out (-)" onClick={() => zoomAt(0, 0, zoom / 1.25)} className="grid h-7 w-7 place-items-center rounded-lg text-[#2e44a7] transition-colors hover:bg-[#eef4ff]">
           <Minus size={15} />
         </button>
@@ -421,9 +548,9 @@ export default function Viewport() {
             type="button"
             aria-label="Fit to screen (0)"
             onClick={fitView}
-            className="grid h-9 w-9 place-items-center rounded-xl border border-[#d7e4ff] bg-white text-[#2e44a7] shadow-sm transition-colors hover:bg-[#eef4ff]"
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-[#d7e4ff] bg-white px-3 text-[13px] font-medium text-[#2e44a7] shadow-sm transition-colors hover:bg-[#eef4ff]"
           >
-            <Maximize size={16} />
+            <Maximize size={16} /> Fit
           </button>
         </Tip>
         <Tip text={!canCompare ? "Remove the background or make an edit to enable comparison" : wipeActive ? "Comparison slider on — select again for single view" : "Comparison slider to compare before & after"}>
@@ -447,12 +574,18 @@ export default function Viewport() {
 
   if (!state) return null;
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="relative flex h-full min-h-0 flex-col">
       <div
-        ref={wrap} data-viewport tabIndex={0} aria-label="Image canvas. Scroll or pinch to zoom, drag with space held to pan."
+        ref={wrap}
+        data-viewport
+        tabIndex={0}
+        aria-label="Image canvas. Scroll or pinch to zoom, drag with space held to pan."
         className="relative min-h-0 flex-1 touch-none select-none overflow-hidden bg-surface-2 outline-none"
         style={{ cursor: painting && !space ? "none" : gesture.current?.kind === "pan" ? "grabbing" : "grab" }}
-        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={onUp}
         onPointerLeave={() => setCursor(null)}
       >
         {displaySide ? (
@@ -462,12 +595,7 @@ export default function Viewport() {
               {box(
                 <>
                   <canvas ref={editedRef} className="checker absolute inset-0 h-full w-full shadow-sm" />
-                  {showScan && (
-                    <div className="reveal-scan" aria-hidden>
-                      <div className="reveal-scan-bar" />
-                      <div className="reveal-scan-line" />
-                    </div>
-                  )}
+                  {showScan && scanBeam}
                 </>,
                 "After",
               )}
@@ -478,11 +606,7 @@ export default function Viewport() {
             {box(
               <>
                 <canvas ref={origRef} className="checker absolute inset-0 h-full w-full shadow-sm" />
-                <canvas
-                  ref={editedRef}
-                  className="checker absolute inset-0 h-full w-full shadow-sm"
-                  style={{ clipPath: `inset(0 ${100 - (reveal ?? 0)}% 0 0)` }}
-                />
+                <canvas ref={editedRef} className="checker absolute inset-0 h-full w-full shadow-sm" style={{ clipPath: `inset(0 ${100 - (reveal ?? 0)}% 0 0)` }} />
                 <div className="pointer-events-none absolute top-0 bottom-0 z-10" style={{ left: `${reveal ?? 0}%` }} aria-hidden>
                   <div className="reveal-sweep-glow absolute top-0 bottom-0 right-0 w-16" />
                   <div className="absolute top-0 bottom-0 -translate-x-1/2 w-[3px] bg-white shadow-[0_0_0_1px_rgba(7,51,235,.7),0_0_16px_rgba(7,51,235,.9)]" />
@@ -506,23 +630,13 @@ export default function Viewport() {
               <>
                 <canvas ref={editedRef} className={`checker absolute inset-0 h-full w-full shadow-sm ${showOrig ? "invisible" : ""}`} />
                 {(compare === "slider" || showOrig) && (
-                  <canvas ref={origRef} className="checker absolute inset-0 h-full w-full"
-                    style={{ clipPath: showOrig ? undefined : `inset(0 ${100 - split}% 0 0)` }} />
+                  <canvas ref={origRef} className="checker absolute inset-0 h-full w-full" style={{ clipPath: showOrig ? undefined : `inset(0 ${100 - split}% 0 0)` }} />
                 )}
-                {showScan && (
-                  <div className="reveal-scan" aria-hidden>
-                    <div className="reveal-scan-beam">
-                      <div className="reveal-scan-wash" />
-                      <div className="reveal-scan-core" />
-                    </div>
-                  </div>
-                )}
+                {showScan && scanBeam}
               </>,
               !hasMask && !showScan && compare === "off" ? "Before" : undefined,
             )}
-            {compare === "slider" && !showOrig && (
-              <SplitHandle split={split} setSplit={setSplit} boxW={boxW * zoom} left={size.w / 2 + pan.x - (boxW * zoom) / 2} />
-            )}
+            {compare === "slider" && !showOrig && <SplitHandle split={split} setSplit={setSplit} boxW={boxW * zoom} left={size.w / 2 + pan.x - (boxW * zoom) / 2} />}
             {(compare === "slider" || showOrig) && (
               <div className="pointer-events-none absolute left-3 top-3 flex gap-2 text-[11px] font-medium">
                 <span className="rounded-md bg-ink-2/85 px-2 py-0.5 text-white">Before</span>
@@ -532,21 +646,20 @@ export default function Viewport() {
             {showScan && (
               <div role="status" className="pointer-events-none absolute left-1/2 top-3 flex max-w-[90%] -translate-x-1/2 items-center gap-2 rounded-full bg-ink-2/85 py-1 pl-3 pr-3 text-[11px] font-medium text-white shadow-lg">
                 <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden />
-                <span className="truncate">{seg?.pct !== undefined ? `${seg.text} · ${seg.pct}%` : seg?.text ?? "Working…"}</span>
+                <span className="truncate">{seg?.pct !== undefined ? `${seg.text} · ${seg.pct}%` : (seg?.text ?? "Working…")}</span>
               </div>
             )}
           </>
         )}
         {painting && cursor && !space && (
-          <div aria-hidden className="pointer-events-none absolute rounded-full border-2 border-white mix-blend-difference"
-            style={{ width: brush.size, height: brush.size, left: size.w / 2 + cursor.x - brush.size / 2, top: size.h / 2 + cursor.y - brush.size / 2 }} />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute rounded-full border-2 border-white mix-blend-difference"
+            style={{ width: brush.size, height: brush.size, left: size.w / 2 + cursor.x - brush.size / 2, top: size.h / 2 + cursor.y - brush.size / 2 }}
+          />
         )}
       </div>
-      {slot ? createPortal(toolbar, slot) : (
-        <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center px-3">
-          {toolbar}
-        </div>
-      )}
+      {slot ? createPortal(toolbar, slot) : <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center px-3">{toolbar}</div>}
     </div>
   );
 }
@@ -565,14 +678,7 @@ function Tip({ text, children }: { text: string; children: React.ReactNode }) {
   };
   const hide = () => setPos(null);
   return (
-    <span
-      ref={anchorRef}
-      className="relative inline-flex shrink-0"
-      onMouseEnter={show}
-      onMouseLeave={hide}
-      onFocus={show}
-      onBlur={hide}
-    >
+    <span ref={anchorRef} className="inline-flex" onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
       {children}
       {pos &&
         createPortal(
@@ -588,9 +694,7 @@ function Tip({ text, children }: { text: string; children: React.ReactNode }) {
             {text}
             <span
               aria-hidden
-              className={`absolute left-1/2 -translate-x-1/2 border-[5px] border-transparent ${
-                pos.below ? "bottom-full border-b-[#232a3b]" : "top-full border-t-[#232a3b]"
-              }`}
+              className={`absolute left-1/2 -translate-x-1/2 border-[5px] border-transparent ${pos.below ? "bottom-full border-b-[#232a3b]" : "top-full border-t-[#232a3b]"}`}
             />
           </span>,
           document.body,
@@ -602,12 +706,10 @@ function Tip({ text, children }: { text: string; children: React.ReactNode }) {
 export function BeforeIcon({ filled }: { filled: boolean }) {
   const stroke = filled ? "#ffffff" : "#2e44a7";
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
-      <path d="M5.5 1.5H3.2a1.7 1.7 0 0 0-1.7 1.7v2.3" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M10.5 1.5h2.3a1.7 1.7 0 0 1 1.7 1.7v2.3" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M5.5 14.5H3.2a1.7 1.7 0 0 1-1.7-1.7v-2.3" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M10.5 14.5h2.3a1.7 1.7 0 0 0 1.7-1.7v-2.3" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" />
-      <rect x="5.8" y="5.8" width="4.4" height="4.4" rx="1" stroke={stroke} strokeWidth="1.4" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <path d="M12 4v16" />
+      <path d="M3 12h9" strokeOpacity={filled ? 1 : 0.6} />
     </svg>
   );
 }
@@ -621,15 +723,35 @@ function SplitHandle({ split, setSplit, boxW, left }: { split: number; setSplit:
   };
   return (
     <div
-      role="slider" aria-label="Comparison position" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(split)} tabIndex={0}
+      role="slider"
+      aria-label="Comparison position"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(split)}
+      tabIndex={0}
       className="absolute top-0 bottom-0 z-10 w-8 -translate-x-1/2 cursor-ew-resize touch-none"
       style={{ left: x }}
-      onPointerDown={(ev) => { ev.stopPropagation(); drag.current = true; (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId); }}
-      onPointerMove={(ev) => { if (drag.current) { ev.stopPropagation(); move(ev.clientX, ev.currentTarget as HTMLElement); } }}
-      onPointerUp={(ev) => { ev.stopPropagation(); drag.current = false; }}
-      onKeyDown={(ev) => { if (ev.key === "ArrowLeft") setSplit(Math.max(0, split - 2)); if (ev.key === "ArrowRight") setSplit(Math.min(100, split + 2)); }}
+      onPointerDown={(ev) => {
+        ev.stopPropagation();
+        drag.current = true;
+        (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
+      }}
+      onPointerMove={(ev) => {
+        if (drag.current) {
+          ev.stopPropagation();
+          move(ev.clientX, ev.currentTarget as HTMLElement);
+        }
+      }}
+      onPointerUp={(ev) => {
+        ev.stopPropagation();
+        drag.current = false;
+      }}
+      onKeyDown={(ev) => {
+        if (ev.key === "ArrowLeft") setSplit(Math.max(0, split - 2));
+        if (ev.key === "ArrowRight") setSplit(Math.min(100, split + 2));
+      }}
     >
-      <div className="mx-auto h-full w-0.5 bg-white shadow-[0_0_0_1px_rgba(7,51,235,.6)]" />
+      <div className="absolute inset-y-0 left-1/2 w-[3px] -translate-x-1/2 bg-white shadow-[0_0_0_1px_rgba(7,51,235,.7)]" />
       <div className="absolute left-1/2 top-1/2 grid h-9 w-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-white bg-brand text-white shadow-lg">⇆</div>
     </div>
   );

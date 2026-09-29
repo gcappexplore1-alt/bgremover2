@@ -1,8 +1,23 @@
+// Needs tests/fixtures/portrait.jpg (800x1200 JPEG) and `npm i -D vitest` to run: `npm test`.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { sanitizeName, uniqueName } from "../src/lib/encode";
 import { History } from "../src/lib/history";
-import { applyAdjustments, applyEraseToAlpha, blurRGBA, fitDims, hasUserEdits, hexToRgb, morph, paintDab, refineMask, resampleMask, rgbToHex, transformMaskForInput, validateDims } from "../src/lib/imageops";
+import {
+  applyAdjustments,
+  applyEraseToAlpha,
+  blurRGBA,
+  fitDims,
+  hasUserEdits,
+  hexToRgb,
+  morph,
+  paintDab,
+  refineMask,
+  resampleMask,
+  rgbToHex,
+  transformMaskForInput,
+  validateDims,
+} from "../src/lib/imageops";
 import { alignSubject, padCanvas, resizeCanvasState } from "../src/lib/layout";
 import { defaultState, inputKey, ZERO_ADJ } from "../src/lib/types";
 import { headerDims, sniffBytes } from "../src/lib/validate";
@@ -34,7 +49,7 @@ describe("upload validation (content sniffing)", () => {
     expect(sniffBytes(bytes("hello world, not an image")).ok).toBe(false);
   });
   it("accepts still WebP", () => {
-    expect(sniffBytes(bytes("RIFF", 0, 0, 0, 0, "WEBPVP8 ")).type).toBe("image/webp");
+    expect(sniffBytes(bytes("RIFF", 0, 0, 0, 0, "WEBPVP8")).type).toBe("image/webp");
   });
 });
 
@@ -55,7 +70,8 @@ describe("colour adjustments", () => {
   it("saturation −100 produces grey", () => {
     const d = new Uint8ClampedArray([200, 50, 50, 255]);
     applyAdjustments(d, 1, 1, { ...ZERO_ADJ, saturation: -100 });
-    expect(d[0]).toBe(d[1]); expect(d[1]).toBe(d[2]);
+    expect(d[0]).toBe(d[1]);
+    expect(d[1]).toBe(d[2]);
   });
   it("premultiplied blur does not darken edges next to transparency", () => {
     const d = new Uint8ClampedArray(4 * 10);
@@ -67,24 +83,31 @@ describe("colour adjustments", () => {
 
 describe("mask operations", () => {
   it("erase and restore brush modify the mask from the stroke base", () => {
-    const w = 20, h = 20;
+    const w = 20,
+      h = 20;
     const base = new Uint8Array(w * h).fill(255);
-    const mask = base.slice(); const stroke = new Uint8Array(w * h);
+    const mask = base.slice();
+    const stroke = new Uint8Array(w * h);
     paintDab(mask, base, stroke, w, h, { x: 10, y: 10, radius: 4, hardness: 1, opacity: 1 }, true);
     expect(mask[10 * w + 10]).toBe(0);
     expect(mask[0]).toBe(255);
-    const base2 = mask.slice(); const m2 = base2.slice();
+    const base2 = mask.slice();
+    const m2 = base2.slice();
     paintDab(m2, base2, new Uint8Array(w * h), w, h, { x: 10, y: 10, radius: 4, hardness: 1, opacity: 0.5 }, false);
     expect(m2[10 * w + 10]).toBeGreaterThan(120);
     expect(m2[10 * w + 10]).toBeLessThan(135);
   });
   it("overlapping dabs in one stroke don't accumulate beyond opacity", () => {
-    const w = 10, base = new Uint8Array(100).fill(255), m = base.slice(), s = new Uint8Array(100);
+    const w = 10,
+      base = new Uint8Array(100).fill(255),
+      m = base.slice(),
+      s = new Uint8Array(100);
     for (let i = 0; i < 5; i++) paintDab(m, base, s, w, 10, { x: 5, y: 5, radius: 3, hardness: 1, opacity: 0.5 }, true);
     expect(m[55]).toBe(127);
   });
   it("expand/contract via morphology", () => {
-    const m = new Uint8Array(25); m[12] = 255;
+    const m = new Uint8Array(25);
+    m[12] = 255;
     expect(morph(m, 5, 5, 1, true).filter((v) => v === 255).length).toBe(9);
     expect(morph(morph(m, 5, 5, 1, true), 5, 5, 1, false)[12]).toBe(255);
     expect(refineMask(m, 5, 5, -1, 0)[12]).toBe(0);
@@ -135,8 +158,7 @@ describe("mask operations", () => {
     const half = { ...full, width: 4, crop: { x: 0.5, y: 0, w: 0.5, h: 1 } };
     const edited = transformMaskForInput(source, 8, 1, full, half, 8, 1);
     edited[0] = 0;
-    const merged = transformMaskForInput(edited, 4, 1, half, full, 8, 1,
-      { fallback: source, region: { x0: 0, y0: 0, x1: 0, y1: 0 } });
+    const merged = transformMaskForInput(edited, 4, 1, half, full, 8, 1, { fallback: source, region: { x0: 0, y0: 0, x1: 0, y1: 0 } });
     expect([...merged]).toEqual([8, 25, 50, 88, 0, 199, 224, 255]);
     expect([...transformMaskForInput(merged, 8, 1, full, full, 8, 1)]).toEqual([...merged]);
   });
@@ -158,7 +180,8 @@ describe("dimensions & layout", () => {
     const s = defaultState(1000, 500, "x");
     const fit = resizeCanvasState(s, 1000, 1000, "fit", "c");
     expect(fit.canvas).toMatchObject({ width: 1000, height: 1000, fit: "fit", anchor: "c" });
-    expect(fit.subject.scale).toBe(1); expect(fit.subject.y).toBe(0.5);
+    expect(fit.subject.scale).toBe(1);
+    expect(fit.subject.y).toBe(0.5);
     expect(fit.export.width).toBe(1000);
     const fill = resizeCanvasState(s, 1000, 1000, "fill", "c");
     expect(fill.canvas.fit).toBe("fill");
@@ -176,7 +199,8 @@ describe("dimensions & layout", () => {
   it("alignSubject centres the visible bbox", () => {
     const s = defaultState(1000, 1000, "x");
     const a = alignSubject(s, { x: 0, y: 0, w: 200, h: 200 }, "center");
-    expect(a.subject.x).toBeCloseTo(0.9); expect(a.subject.y).toBeCloseTo(0.9);
+    expect(a.subject.x).toBeCloseTo(0.9);
+    expect(a.subject.y).toBeCloseTo(0.9);
   });
   it("inputKey changes with geometry", () => {
     const s = defaultState(10, 10, "x");

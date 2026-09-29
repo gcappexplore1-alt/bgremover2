@@ -29,7 +29,10 @@ export interface Snapshot {
 export class History {
   past: Snapshot[] = [];
   future: Snapshot[] = [];
-  constructor(private maxEntries = 80, private maxMaskBytes = 192 * 1024 * 1024) {}
+  constructor(
+    private maxEntries = 80,
+    private maxMaskBytes = 192 * 1024 * 1024,
+  ) {}
 
   push(s: Snapshot) {
     this.past.push(s);
@@ -48,21 +51,40 @@ export class History {
     this.past.push({ ...current, label: s.label });
     return s;
   }
-  clear() { this.past = []; this.future = []; }
-  get canUndo() { return this.past.length > 0; }
-  get canRedo() { return this.future.length > 0; }
+  clear() {
+    this.past = [];
+    this.future = [];
+  }
+  get canUndo() {
+    return this.past.length > 0;
+  }
+  get canRedo() {
+    return this.future.length > 0;
+  }
 
   maskBytes(): number {
     const seen = new Set<Uint8Array>();
     let n = 0;
     for (const s of [...this.past, ...this.future]) {
-      if (s.mask && !seen.has(s.mask)) { seen.add(s.mask); n += s.mask.byteLength; }
-      if (s.autoMask && !seen.has(s.autoMask)) { seen.add(s.autoMask); n += s.autoMask.byteLength; }
+      if (s.mask && !seen.has(s.mask)) {
+        seen.add(s.mask);
+        n += s.mask.byteLength;
+      }
+      if (s.autoMask && !seen.has(s.autoMask)) {
+        seen.add(s.autoMask);
+        n += s.autoMask.byteLength;
+      }
       for (const m of [s.maskReserve?.current, s.maskReserve?.auto]) {
-        if (m && !seen.has(m)) { seen.add(m); n += m.byteLength; }
+        if (m && !seen.has(m)) {
+          seen.add(m);
+          n += m.byteLength;
+        }
       }
       const se = s.shadowErase?.data;
-      if (se && !seen.has(se)) { seen.add(se); n += se.byteLength; }
+      if (se && !seen.has(se)) {
+        seen.add(se);
+        n += se.byteLength;
+      }
     }
     return n;
   }

@@ -4,24 +4,33 @@ import { fitDims } from "./imageops";
 import { defaultState, newId, SCHEMA_VERSION, type Project } from "./types";
 import { validateAndDecode } from "./validate";
 
-/** Files handed from the landing page to the editor during client-side navigation. */
+/** Files handed from the landing page to the editor during client-side navigation (in memory only). */
 export const pendingFiles: File[] = [];
 
-export async function ingestFile(file: File, signal?: AbortSignal): Promise<{ project: Project; bitmap: ImageBitmap; blob: Blob; saveError: string | null }> {
+export async function ingestFile(file: File, signal?: AbortSignal): Promise<{ project: Project; bitmap: ImageBitmap; blob: Blob }> {
   const dec = await validateAndDecode(file, signal);
   const { width, height } = fitDims(dec.width, dec.height, DEFAULT_WORKING_SIDE, MAX_OUTPUT_PIXELS);
   const id = newId();
   const assetId = newId();
   const name = sanitizeName(file.name);
   const project: Project = {
-    schemaVersion: SCHEMA_VERSION, id, name, createdAt: Date.now(), updatedAt: Date.now(), originalAssetId: assetId,
+    schemaVersion: SCHEMA_VERSION,
+    id,
+    name,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    originalAssetId: assetId,
     original: { name: file.name, type: dec.type, size: file.size, width: dec.width, height: dec.height },
-    maskInputKey: null, model: null, state: defaultState(width, height, `${name}-edited`),
+    maskInputKey: null,
+    model: null,
+    state: defaultState(width, height, `${name}-edited`),
   };
-  if (signal?.aborted) { dec.bitmap.close(); throw new DOMException("Cancelled", "AbortError"); }
+  if (signal?.aborted) {
+    dec.bitmap.close();
+    throw new DOMException("Cancelled", "AbortError");
+  }
   // Immutable copy of the original bytes, kept in memory for this visit only.
   // Nothing is written to storage: leaving or reloading starts empty.
   const blob = file.slice(0, file.size, dec.type);
-  const saveError: string | null = null;
-  return { project, bitmap: dec.bitmap, blob, saveError };
+  return { project, bitmap: dec.bitmap, blob };
 }

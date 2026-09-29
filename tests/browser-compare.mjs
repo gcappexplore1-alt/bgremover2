@@ -48,7 +48,7 @@ try {
   await page.locator('input[aria-label="Choose images to upload"]').waitFor({ state: "attached", timeout: 30000 });
   assert.equal(await page.locator('input[aria-label="Project name"]').count(), 0, "no project restored after reload");
   const stored = await page.evaluate(async () => {
-    const dbs = await indexedDB.databases?.() ?? [];
+    const dbs = (await indexedDB.databases?.()) ?? [];
     let projects = -1;
     if (dbs.some((d) => d.name === "cutout-studio")) {
       projects = await new Promise((resolve) => {

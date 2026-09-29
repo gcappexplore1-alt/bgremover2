@@ -1,12 +1,13 @@
-"use client";
-import dynamic from "next/dynamic";
+import { Suspense, lazy } from "react";
 
-// The editor is client-only (canvas, IndexedDB, workers) and lazy-loaded to keep the landing page light.
-const Editor = dynamic(() => import("./Editor"), {
-  ssr: false,
-  loading: () => <div className="grid h-dvh place-items-center text-sm text-muted">Loading editor…</div>,
-});
+// The editor is client-only (canvas, workers, model downloads) and lazy-loaded to keep the landing page light.
+// (Next.js original: `dynamic(() => import("./Editor"), { ssr: false, loading: … })`.)
+const Editor = lazy(() => import("./Editor"));
 
 export default function EditorLoader({ embedded = false }: { embedded?: boolean }) {
-  return <Editor embedded={embedded} />;
+  return (
+    <Suspense fallback={<p className="p-8 text-center text-muted">Loading editor…</p>}>
+      <Editor embedded={embedded} />
+    </Suspense>
+  );
 }

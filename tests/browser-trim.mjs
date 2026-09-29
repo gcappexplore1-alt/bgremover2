@@ -1,5 +1,9 @@
 // Start a production build on port 3100, then `node tests/browser-trim.mjs`.
 // Only uses the development portrait fixture; nothing is seeded in the live app.
+//
+// NOTE: the two `page.reload(...)` blocks below assume a project (and its mask reserve) is restored from
+// storage. Editing is session-only, so those two sections need their refresh steps removed before this
+// test can pass against the current app.
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -17,15 +21,20 @@ async function alphaSummary() {
   return photoCanvas().evaluate((canvas) => {
     const { width: w, height: h } = canvas;
     const data = canvas.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, w, h).data;
-    let leftAlpha = 0, totalAlpha = 0, subjectX = -1, subjectY = -1;
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      const a = data[(y * w + x) * 4 + 3];
-      totalAlpha += a;
-      if (x < w * 0.4) leftAlpha += a;
-      if (subjectX < 0 && x > w * 0.35 && x < w * 0.7 && y > h * 0.25 && y < h * 0.8 && a > 245) {
-        subjectX = x; subjectY = y;
+    let leftAlpha = 0,
+      totalAlpha = 0,
+      subjectX = -1,
+      subjectY = -1;
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const a = data[(y * w + x) * 4 + 3];
+        totalAlpha += a;
+        if (x < w * 0.4) leftAlpha += a;
+        if (subjectX < 0 && x > w * 0.35 && x < w * 0.7 && y > h * 0.25 && y < h * 0.8 && a > 245) {
+          subjectX = x;
+          subjectY = y;
+        }
       }
-    }
     return { w, h, leftAlpha, totalAlpha, subjectX, subjectY };
   });
 }
@@ -42,7 +51,7 @@ try {
   await page.locator('input[aria-label="Project name"]').waitFor({ timeout: 30000 });
   await aside.locator("select").first().selectOption("portrait");
   await aside.getByRole("button", { name: "Remove background" }).click();
-  await aside.locator('text=Background removed').first().waitFor({ timeout: 180000 });
+  await aside.locator("text=Background removed").first().waitFor({ timeout: 180000 });
   await page.waitForTimeout(1750);
   await page.getByRole("button", { name: "Resize", exact: true }).first().click();
   await aside.getByRole("tab", { name: /Image/ }).click();
@@ -94,12 +103,14 @@ try {
   const trimmed = await alphaSummary();
   const el = await photoCanvas().boundingBox();
   assert.ok(el && trimmed.subjectX >= 0);
-  const px = el.x + el.width * (trimmed.subjectX + 0.5) / trimmed.w;
-  const py = el.y + el.height * (trimmed.subjectY + 0.5) / trimmed.h;
+  const px = el.x + (el.width * (trimmed.subjectX + 0.5)) / trimmed.w;
+  const py = el.y + (el.height * (trimmed.subjectY + 0.5)) / trimmed.h;
   await page.getByRole("button", { name: "Cutout", exact: true }).first().click();
   await aside.getByRole("radio", { name: "Erase" }).click();
   await page.mouse.move(px, py);
-  await page.mouse.down(); await page.mouse.move(px + 4, py + 4, { steps: 3 }); await page.mouse.up();
+  await page.mouse.down();
+  await page.mouse.move(px + 4, py + 4, { steps: 3 });
+  await page.mouse.up();
   await page.waitForTimeout(1800);
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.locator('input[aria-label="Project name"]').waitFor({ timeout: 30000 });
@@ -108,25 +119,20 @@ try {
   await aside.locator("summary").filter({ hasText: "Trim the photo" }).click();
   await aside.getByRole("button", { name: "Reset crop" }).click();
   const withStroke = await alphaSummary();
-  assert.ok(withStroke.leftAlpha > 0 && Math.abs(withStroke.leftAlpha - full.leftAlpha) < full.leftAlpha * 0.05,
-    "Reset crop restores subject pixels hidden behind the trim");
-  assert.ok(withStroke.totalAlpha < full.totalAlpha - 500,
-    "The cropped erase stroke is still present after restoring the hidden edges");
+  assert.ok(withStroke.leftAlpha > 0 && Math.abs(withStroke.leftAlpha - full.leftAlpha) < full.leftAlpha * 0.05, "Reset crop restores subject pixels hidden behind the trim");
+  assert.ok(withStroke.totalAlpha < full.totalAlpha - 500, "The cropped erase stroke is still present after restoring the hidden edges");
   console.log("PASS: Manual brush stroke survives crop reset; hidden mask edges return.");
 
   await page.getByRole("button", { name: "Cutout", exact: true }).first().click();
   await aside.getByRole("button", { name: /Reset mask to automatic result/ }).click();
   await page.waitForTimeout(250);
-  assert.equal((await alphaSummary()).totalAlpha, full.totalAlpha,
-    "Reset mask removes the trimmed brush edit from the full archive too");
+  assert.equal((await alphaSummary()).totalAlpha, full.totalAlpha, "Reset mask removes the trimmed brush edit from the full archive too");
   await page.keyboard.press("Control+z");
   await page.waitForTimeout(250);
-  assert.equal((await alphaSummary()).totalAlpha, withStroke.totalAlpha,
-    "Undo restores the brush edit and its archived mask");
+  assert.equal((await alphaSummary()).totalAlpha, withStroke.totalAlpha, "Undo restores the brush edit and its archived mask");
   await page.keyboard.press("Control+Shift+z");
   await page.waitForTimeout(250);
-  assert.equal((await alphaSummary()).totalAlpha, full.totalAlpha,
-    "Redo restores the full automatic mask");
+  assert.equal((await alphaSummary()).totalAlpha, full.totalAlpha, "Redo restores the full automatic mask");
   console.log("PASS: Reset mask, undo, and redo keep the preserved mask consistent.");
 
   assert.deepEqual(errors, [], "No browser runtime errors");

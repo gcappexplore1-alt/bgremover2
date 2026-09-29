@@ -4,16 +4,22 @@ import { SCHEMA_VERSION, type Project } from "./types";
 import type { MaskReserve } from "./history";
 
 interface MaskRecord {
-  auto: Uint8Array | null; current: Uint8Array | null; width: number; height: number;
+  auto: Uint8Array | null;
+  current: Uint8Array | null;
+  width: number;
+  height: number;
   /** Optional because older locally saved projects predate non-destructive trimming. */
   maskReserve?: MaskReserve | null;
   /** Shadow brush edits in canvas space (older records omit these = no erasing). */
-  shadowErase?: Uint8Array | null; sew?: number; seh?: number;
+  shadowErase?: Uint8Array | null;
+  sew?: number;
+  seh?: number;
 }
 
 let dbp: Promise<IDBPDatabase> | null = null;
-function db() {
-  if (typeof indexedDB === "undefined") return Promise.reject(new Error("IndexedDB is unavailable in this browser (private mode?). Projects can't be saved."));
+function db(): Promise<IDBPDatabase> {
+  if (typeof indexedDB === "undefined")
+    return Promise.reject(new Error("IndexedDB is unavailable in this browser (private mode?). Projects can't be saved."));
   if (!dbp) {
     dbp = openDB("cutout-studio", 1, {
       upgrade(d) {
@@ -35,8 +41,16 @@ function wrap(e: unknown): never {
   throw e instanceof Error ? e : new Error(String(e));
 }
 
-export async function putAsset(id: string, blob: Blob) { try { await (await db()).put("assets", blob, id); } catch (e) { wrap(e); } }
-export async function getAsset(id: string): Promise<Blob | undefined> { return (await db()).get("assets", id); }
+export async function putAsset(id: string, blob: Blob) {
+  try {
+    await (await db()).put("assets", blob, id);
+  } catch (e) {
+    wrap(e);
+  }
+}
+export async function getAsset(id: string): Promise<Blob | undefined> {
+  return (await db()).get("assets", id);
+}
 
 export async function saveProject(p: Project, mask?: MaskRecord) {
   try {
@@ -45,10 +59,14 @@ export async function saveProject(p: Project, mask?: MaskRecord) {
     await tx.objectStore("projects").put({ ...p, updatedAt: Date.now() });
     if (mask) await tx.objectStore("masks").put(mask, p.id);
     await tx.done;
-  } catch (e) { wrap(e); }
+  } catch (e) {
+    wrap(e);
+  }
 }
 
-export async function loadMasks(id: string): Promise<MaskRecord | undefined> { return (await db()).get("masks", id); }
+export async function loadMasks(id: string): Promise<MaskRecord | undefined> {
+  return (await db()).get("masks", id);
+}
 
 export async function listProjects(): Promise<Project[]> {
   const all = (await (await db()).getAll("projects")) as Project[];
@@ -65,9 +83,24 @@ export async function deleteProject(p: Project) {
   await tx.done;
 }
 
-export async function setMeta<T>(key: string, v: T) { try { await (await db()).put("meta", v, key); } catch (e) { wrap(e); } }
-export async function getMeta<T>(key: string): Promise<T | undefined> { try { return (await db()).get("meta", key); } catch { return undefined; } }
-export async function delMeta(key: string) { try { await (await db()).delete("meta", key); } catch { /* ignore */ } }
+export async function setMeta<T>(key: string, v: T): Promise<void> {
+  try {
+    await (await db()).put("meta", v, key);
+  } catch (e) {
+    wrap(e);
+  }
+}
+export async function getMeta<T = any>(key: string): Promise<T | undefined> {
+  // Note: the failure path is swallowed on purpose — preferences are optional, editing must keep working.
+  return (await db()).get("meta", key).catch(() => undefined);
+}
+export async function delMeta(key: string) {
+  try {
+    await (await db()).delete("meta", key);
+  } catch {
+    /* ignore */
+  }
+}
 
 /**
  * Session-only editing: projects and image bytes are never persisted.
@@ -79,13 +112,11 @@ export async function clearSavedProjects() {
   try {
     const d = await db();
     const tx = d.transaction(["projects", "masks", "assets"], "readwrite");
-    await Promise.all([
-      tx.objectStore("projects").clear(),
-      tx.objectStore("masks").clear(),
-      tx.objectStore("assets").clear(),
-    ]);
+    await Promise.all([tx.objectStore("projects").clear(), tx.objectStore("masks").clear(), tx.objectStore("assets").clear()]);
     await tx.done;
-  } catch { /* ignore — editing still works fully in memory */ }
+  } catch {
+    /* ignore — editing still works fully in memory */
+  }
   await delMeta("active");
 }
 

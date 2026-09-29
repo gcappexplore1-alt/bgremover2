@@ -1,28 +1,27 @@
 <?php
 /**
- * Plugin Name:       Cutout Studio – AI Service
- * Description:       Adds an "AI Service" menu item and a page running the Cutout Studio background remover & image editor inside your existing theme (header, footer and styling are your site's).
- * Version:           1.1.0
- * Author:            Clipping World
- * License:           GPL-2.0-or-later
- * Text Domain:       cutout-studio
+ * Plugin Name: Cutout Studio
+ * Description: Adds the Cutout Studio background remover and image editor to your site as a themed page, with an "AI Service" menu item.
+ * Version:     1.1.0
+ * Author:      Clipping World
+ * License:     GPL-2.0-or-later
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-const CUTOUT_STUDIO_OPTION   = 'cutout_studio_settings';
-const CUTOUT_STUDIO_PAGE_OPT = 'cutout_studio_page_id';
+define( 'CUTOUT_STUDIO_OPTION', 'cutout_studio_settings' );
+define( 'CUTOUT_STUDIO_PAGE_OPT', 'cutout_studio_page_id' );
 
 function cutout_studio_defaults() {
 	return array(
-		'app_url'     => 'https://tools.clippingworld.com',
-		'min_height'  => 760,
-		'menu_label'  => 'AI Service',
-		'auto_menu'   => 1,   // add the item to nav menus automatically
-		'menu_style'  => 'link', // 'link' = same as your other menu items, 'button' = accent pill
-		'page_slug'   => 'ai-service',
+		'app_url'    => 'https://tools.clippingworld.com',
+		'min_height' => 760,
+		'menu_label' => 'AI Service',
+		'auto_menu'  => 1,      // add the item to nav menus automatically
+		'menu_style' => 'link', // 'link' = same as your other menu items, 'button' = accent pill
+		'page_slug'  => 'ai-service',
 	);
 }
 
@@ -139,7 +138,7 @@ function cutout_studio_settings_page() {
 
 /* ---------------------------------------------------------------------------
  * Add the "AI Service" item to nav menus.
- * It's injected as a normal <li><a> so it inherits your theme's menu styling.
+ * It's injected as a normal <li> so it inherits your theme's menu styling.
  * ------------------------------------------------------------------------- */
 add_filter( 'wp_nav_menu_items', function ( $items, $args ) {
 	$s = cutout_studio_settings();

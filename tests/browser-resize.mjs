@@ -24,7 +24,8 @@ try {
   assert.ok(rect && rect.width > 200, "Editor canvas is visible");
   const panFrom = async (dx, dy) => {
     const r = await view.boundingBox();
-    const x = r.x + r.width / 2, y = r.y + r.height / 2;
+    const x = r.x + r.width / 2,
+      y = r.y + r.height / 2;
     await page.mouse.move(x, y);
     await page.mouse.down();
     await page.mouse.move(x + dx, y + dy, { steps: 10 });
@@ -111,15 +112,23 @@ try {
     const r = await phoneView.boundingBox();
     const initial = await phoneImage.boundingBox();
     const touch = await mobile.newCDPSession(phone);
-    const tx = r.x + r.width / 2, ty = r.y + r.height / 2;
+    const tx = r.x + r.width / 2,
+      ty = r.y + r.height / 2;
     const send = (type, touchPoints) => touch.send("Input.dispatchTouchEvent", { type, touchPoints });
     await send("touchStart", [{ id: 1, x: tx, y: ty }]);
     for (let i = 1; i <= 8; i++) await send("touchMove", [{ id: 1, x: tx + i * 6, y: ty + i * 4 }]);
     await send("touchEnd", []);
     const dragged = await phoneImage.boundingBox();
     assert.ok(Math.abs(dragged.x - initial.x - 48) < 7, "One-finger hand drag works at fit on a phone");
-    await send("touchStart", [{ id: 1, x: tx - 30, y: ty }, { id: 2, x: tx + 30, y: ty }]);
-    for (let i = 1; i <= 8; i++) await send("touchMove", [{ id: 1, x: tx - 30 - i * 5, y: ty }, { id: 2, x: tx + 30 + i * 5, y: ty }]);
+    await send("touchStart", [
+      { id: 1, x: tx - 30, y: ty },
+      { id: 2, x: tx + 30, y: ty },
+    ]);
+    for (let i = 1; i <= 8; i++)
+      await send("touchMove", [
+        { id: 1, x: tx - 30 - i * 5, y: ty },
+        { id: 2, x: tx + 30 + i * 5, y: ty },
+      ]);
     await send("touchEnd", []);
     const pinched = await phoneImage.boundingBox();
     assert.ok(pinched.width > dragged.width * 1.4, "Pinch zoom enlarges image on a phone");
@@ -131,7 +140,9 @@ try {
     assert.equal(await sheet.getByRole("button", { name: /Apply/ }).count(), 0);
     assert.ok((await phoneView.boundingBox()).height > 100, "Canvas stays visible beside mobile settings");
     console.log("PASS: Touch pan, pinch zoom, and live Resize work in the mobile sheet.");
-  } finally { await mobile.close(); }
+  } finally {
+    await mobile.close();
+  }
 
   assert.deepEqual(errors, [], "No browser runtime errors");
   console.log("PASS: No browser runtime errors.");

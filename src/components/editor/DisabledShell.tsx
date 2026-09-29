@@ -1,4 +1,3 @@
-"use client";
 import { ArrowLeftRight, Brush, Columns2, Eraser, Hand, Maximize, Minus, Plus } from "lucide-react";
 import { MODELS } from "@/lib/config";
 import { Button, Hint, Section, Slider, Toggle } from "../ui";
@@ -15,7 +14,7 @@ export function DisabledViewToolbar() {
       role="toolbar"
       aria-label="View controls (disabled — upload an image to enable)"
       aria-disabled="true"
-      className="pointer-events-none flex max-w-full flex-wrap items-center justify-center gap-2 overflow-visible rounded-2xl border border-white/70 bg-[#e9efff]/90 px-3 py-2 shadow-[0_12px_32px_rgba(7,51,235,0.16)] backdrop-blur-xl"
+      className="flex w-max max-w-full flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar rounded-2xl border border-white/70 bg-[#e9efff]/90 px-3 py-2 shadow-[0_12px_32px_rgba(7,51,235,0.16)] backdrop-blur-xl"
     >
       <div className="flex shrink-0 items-center gap-1 rounded-xl border border-[#d7e4ff] bg-white p-1 shadow-sm" role="group" aria-label="Before and after">
         <button
@@ -50,6 +49,7 @@ export function DisabledViewToolbar() {
       <span className="h-8 w-px shrink-0 bg-[#d3ddf7]" aria-hidden />
 
       <div className="flex h-9 shrink-0 items-center rounded-xl border border-[#d7e4ff] bg-white px-1 shadow-sm" role="group" aria-label="Zoom">
+        <span className="pl-2 pr-1 text-[13px] font-medium text-[#2e44a7]">Zoom</span>
         <button type="button" aria-label="Zoom out (-)" disabled className="grid h-7 w-7 place-items-center rounded-lg text-[#2e44a7] disabled:cursor-not-allowed disabled:opacity-40">
           <Minus size={15} />
         </button>
@@ -68,9 +68,9 @@ export function DisabledViewToolbar() {
           type="button"
           aria-label="Fit to screen (0)"
           disabled
-          className="grid h-9 w-9 place-items-center rounded-xl border border-[#d7e4ff] bg-white text-[#2e44a7] shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-[#d7e4ff] bg-white px-3 text-[13px] font-medium text-[#2e44a7] shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <Maximize size={16} />
+          <Maximize size={16} /> Fit
         </button>
         <button
           type="button"
@@ -87,12 +87,16 @@ export function DisabledViewToolbar() {
 
 export function DisabledCutoutPanel() {
   return (
-    <div aria-disabled="true" className="space-y-3">
+    <div className="space-y-3">
       <Hint>Upload an image to enable these editing tools.</Hint>
       <Section title="Automatic removal">
         <label className="block text-xs text-ink-3">
           Model
-          <select disabled aria-label="Model (disabled — upload an image to enable)" className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink-2 disabled:cursor-not-allowed disabled:opacity-60">
+          <select
+            disabled
+            aria-label="Model (disabled — upload an image to enable)"
+            className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink-2 disabled:cursor-not-allowed disabled:opacity-60"
+          >
             {Object.entries(MODELS).map(([k, m]) => (
               <option key={k} value={k}>
                 {m.label} · {m.license}

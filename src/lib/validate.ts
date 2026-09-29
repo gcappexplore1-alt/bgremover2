@@ -20,7 +20,11 @@ export function sniffBytes(b: Uint8Array): SniffResult {
     while (o + 8 <= b.length) {
       const len = ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
       const t = ascii(b, o + 4, 4);
-      if (t === "acTL") return { ok: false, error: "Animated PNG (APNG) is not supported. Only a single frame would be processed, so please export one frame as a still PNG first." };
+      if (t === "acTL")
+        return {
+          ok: false,
+          error: "Animated PNG (APNG) is not supported. Only a single frame would be processed, so please export one frame as a still PNG first.",
+        };
       if (t === "IDAT" || t === "IEND") break;
       o += 12 + len;
     }
@@ -28,7 +32,7 @@ export function sniffBytes(b: Uint8Array): SniffResult {
   }
   if (ascii(b, 0, 4) === "RIFF" && ascii(b, 8, 4) === "WEBP") {
     const fourcc = ascii(b, 12, 4);
-    if (fourcc === "VP8X" && b.length > 20 && (b[20] & 0x02)) {
+    if (fourcc === "VP8X" && b.length > 20 && b[20] & 0x02) {
       return { ok: false, error: "Animated WebP is not supported. Only a single frame would be processed, so please use a still image." };
     }
     return { ok: true, type: "image/webp" };
@@ -36,11 +40,12 @@ export function sniffBytes(b: Uint8Array): SniffResult {
   if (ascii(b, 0, 3) === "GIF") return { ok: false, error: "GIF isn't supported (it's often animated). Please convert it to PNG, JPG or WebP." };
   if (ascii(b, 4, 4) === "ftyp") {
     const brand = ascii(b, 8, 4);
-    if (/heic|heix|mif1|msf1|hevc/.test(brand)) return { ok: false, error: "HEIC/HEIF photos aren't supported yet because no decoder is included. Export as JPG from your phone or Photos app." };
+    if (/heic|heix|mif1|msf1|hevc/.test(brand))
+      return { ok: false, error: "HEIC/HEIF photos aren't supported yet because no decoder is included. Export as JPG from your phone or Photos app." };
     if (/avif|avis/.test(brand)) return { ok: false, error: "AVIF input isn't supported. Please use JPG, PNG or WebP." };
   }
   if (ascii(b, 0, 2) === "BM") return { ok: false, error: "BMP isn't supported. Please use JPG, PNG or WebP." };
-  if (/^\s*<(\?xml|svg)/i.test(ascii(b, 0, 12))) return { ok: false, error: "SVG isn't supported. Please upload a raster image (JPG, PNG or WebP)." };
+  if (/^<(\?xml|svg)/i.test(ascii(b, 0, 12))) return { ok: false, error: "SVG isn't supported. Please upload a raster image (JPG, PNG or WebP)." };
   return { ok: false, error: "This file isn't a JPG, PNG or WebP image (checked from its contents, not its name)." };
 }
 
@@ -53,18 +58,27 @@ export function headerDims(b: Uint8Array, type: Sniffed): { w: number; h: number
   if (type === "image/webp" && b.length >= 30) {
     const f = ascii(b, 12, 4);
     if (f === "VP8X") return { w: 1 + (b[24] | (b[25] << 8) | (b[26] << 16)), h: 1 + (b[27] | (b[28] << 8) | (b[29] << 16)) };
-    if (f === "VP8L") { const v = b[21] | (b[22] << 8) | (b[23] << 16) | (b[24] << 24); return { w: (v & 0x3fff) + 1, h: ((v >> 14) & 0x3fff) + 1 }; }
-    if (f === "VP8 ") return { w: (b[26] | (b[27] << 8)) & 0x3fff, h: (b[28] | (b[29] << 8)) & 0x3fff };
+    if (f === "VP8L") {
+      const v = b[21] | (b[22] << 8) | (b[23] << 16) | (b[24] << 24);
+      return { w: (v & 0x3fff) + 1, h: ((v >> 14) & 0x3fff) + 1 };
+    }
+    if (f === "VP8") return { w: (b[26] | (b[27] << 8)) & 0x3fff, h: (b[28] | (b[29] << 8)) & 0x3fff };
   }
   if (type === "image/jpeg") {
     let o = 2;
     while (o + 9 < b.length) {
-      if (b[o] !== 0xff) { o++; continue; }
+      if (b[o] !== 0xff) {
+        o++;
+        continue;
+      }
       const m = b[o + 1];
       if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
         return { h: (b[o + 5] << 8) | b[o + 6], w: (b[o + 7] << 8) | b[o + 8] };
       }
-      if (m === 0xd8 || (m >= 0xd0 && m <= 0xd7) || m === 0x01 || m === 0xff) { o += m === 0xff ? 1 : 2; continue; }
+      if (m === 0xd8 || (m >= 0xd0 && m <= 0xd7) || m === 0x01 || m === 0xff) {
+        o += m === 0xff ? 1 : 2;
+        continue;
+      }
       o += 2 + ((b[o + 2] << 8) | b[o + 3]);
     }
   }
@@ -84,7 +98,7 @@ export function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
 }
 
-/** Read the header for sniffing; with progress reporting for large files. */
+/** Read the header for sniffing. */
 async function readHead(file: File): Promise<Uint8Array> {
   const buf = await file.slice(0, 256 * 1024).arrayBuffer();
   return new Uint8Array(buf);
@@ -111,10 +125,14 @@ export async function validateAndDecode(file: File, signal?: AbortSignal): Promi
   } catch {
     throw new Error(`${file.name} could not be decoded. The file may be corrupt or use an unsupported variant.`);
   }
-  if (signal?.aborted) { bitmap.close(); throw new DOMException("Cancelled", "AbortError"); }
+  if (signal?.aborted) {
+    bitmap.close();
+    throw new DOMException("Cancelled", "AbortError");
+  }
   const px = bitmap.width * bitmap.height;
   if (px > MAX_DECODED_PIXELS) {
-    const w = bitmap.width, h = bitmap.height;
+    const w = bitmap.width,
+      h = bitmap.height;
     bitmap.close();
     throw new Error(`${file.name} is ${w}×${h} (${(px / 1e6).toFixed(1)} MP). The limit is ${(MAX_DECODED_PIXELS / 1e6).toFixed(0)} MP decoded pixels.`);
   }

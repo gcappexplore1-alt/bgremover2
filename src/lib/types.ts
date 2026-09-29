@@ -13,7 +13,14 @@ export interface Adjustments {
   sharpness: number; // 0..100
 }
 export const ZERO_ADJ: Adjustments = {
-  exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0, sharpness: 0,
+  exposure: 0,
+  contrast: 0,
+  saturation: 0,
+  temperature: 0,
+  tint: 0,
+  highlights: 0,
+  shadows: 0,
+  sharpness: 0,
 };
 
 export type Anchor = "tl" | "t" | "tr" | "l" | "c" | "r" | "bl" | "b" | "br";
@@ -70,7 +77,6 @@ export interface ShadowSettings {
 export interface CanvasSettings {
   width: number;
   height: number;
-  /** Optional for compatibility with projects saved before live resize controls. */
   fit?: "fit" | "fill" | "pad";
   anchor?: Anchor;
   padding?: number;
@@ -121,7 +127,7 @@ export interface Project {
   updatedAt: number;
   originalAssetId: string;
   original: OriginalMeta;
-  /** Key of the input transform the saved mask was generated for. */
+  /** Key of the input transform the current mask was generated for. */
   maskInputKey: string | null;
   model: ModelKey | null;
   state: ProjectState;
@@ -141,8 +147,17 @@ export function defaultState(w: number, h: number, baseName: string): ProjectSta
       gradient: { from: "#0733EB", to: "#156DE3", angle: 135 },
       blur: 12,
       image: {
-        assetId: null, name: "", fit: "cover", scale: 1, x: 0, y: 0, rotation: 0,
-        crop: { x: 0, y: 0, w: 1, h: 1 }, brightness: 0, blur: 0, fill: "#ffffff",
+        assetId: null,
+        name: "",
+        fit: "cover",
+        scale: 1,
+        x: 0,
+        y: 0,
+        rotation: 0,
+        crop: { x: 0, y: 0, w: 1, h: 1 },
+        brightness: 0,
+        blur: 0,
+        fill: "#ffffff",
       },
     },
     adjust: { subject: { ...ZERO_ADJ }, background: { ...ZERO_ADJ }, global: { ...ZERO_ADJ } },
@@ -152,8 +167,14 @@ export function defaultState(w: number, h: number, baseName: string): ProjectSta
     },
     canvas: { width: w, height: h, fit: "fit", anchor: "c", padding: 8 },
     export: {
-      filename: baseName, format: "png", quality: 90, width: w, height: h, lockAspect: true,
-      transparent: true, fill: "#ffffff",
+      filename: baseName,
+      format: "png",
+      quality: 90,
+      width: w,
+      height: h,
+      lockAspect: true,
+      transparent: true,
+      fill: "#ffffff",
     },
   };
 }
