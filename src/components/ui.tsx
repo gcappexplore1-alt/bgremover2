@@ -130,7 +130,7 @@ export function Toggle({ label, checked, onChange, disabled, description }: { la
         <span className="block text-ink-2">{label}</span>
         {description && <span className="mt-0.5 block text-xs text-muted">{description}</span>}
       </span>
-      <span aria-hidden className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? "bg-brand" : "bg-slate-300"}`}>
+      <span aria-hidden className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? "bg-gradient-to-r from-[#0733eb] to-[#156de3]" : "bg-slate-300"}`}>
         <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? "translate-x-5" : "translate-x-0"}`} />
       </span>
     </button>
@@ -142,7 +142,7 @@ export function Segmented<T extends string>({ label, value, options, onChange }:
     <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-1 rounded-xl border border-[#e3e9ff] bg-[#eef2ff] p-1">
       {options.map((o) => (
         <button key={o.value} type="button" role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)}
-          className={`flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-medium transition-colors ${value === o.value ? "bg-white text-[#0733eb] shadow-sm ring-1 ring-[#d7e4ff]" : "text-ink-3 hover:text-[#2e44a7]"}`}>
+          className={`flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold transition-colors ${value === o.value ? "bg-gradient-to-b from-[#0733eb] to-[#156de3] text-white shadow-sm" : "text-ink-3 hover:text-[#2e44a7]"}`}>
           {o.icon}{o.label}
         </button>
       ))}

@@ -119,7 +119,7 @@ export function DisabledCutoutPanel() {
               aria-checked={o.active}
               disabled
               className={`flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-60 ${
-                o.active ? "bg-white text-[#0733eb] shadow-sm ring-1 ring-[#d7e4ff]" : "text-ink-3"
+                o.active ? "bg-gradient-to-b from-[#0733eb] to-[#156de3] text-white shadow-sm" : "text-ink-3"
               }`}
             >
               {o.icon}

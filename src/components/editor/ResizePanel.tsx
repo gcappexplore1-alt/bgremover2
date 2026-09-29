@@ -236,7 +236,7 @@ export function ResizePanel() {
       <div role="tablist" aria-label="Resize options" className="grid grid-cols-2 gap-1.5 border-b border-line-soft p-3">
         {(Object.keys(tabInfo) as (keyof typeof tabInfo)[]).map((key) => (
           <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
-            className={`flex min-h-12 items-center gap-2 rounded-lg border px-2.5 text-left transition-colors ${tab === key ? "border-brand bg-brand/10 text-brand" : "border-line-soft text-ink-2 hover:bg-surface"}`}>
+            className={`flex min-h-12 items-center gap-2 rounded-lg border px-2.5 text-left transition-colors ${tab === key ? "border-[#0733eb] bg-gradient-to-b from-[#0733eb] to-[#156de3] text-white shadow-sm" : "border-line-soft text-ink-2 hover:bg-surface"}`}>
             {tabInfo[key].icon}
             <span className="min-w-0"><span className="block text-xs font-semibold">{tabInfo[key].label}</span><span className="block text-[10px] text-muted">{tabInfo[key].detail}</span></span>
           </button>

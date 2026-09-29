@@ -126,7 +126,7 @@ export function BackgroundPanel() {
           {BG_TYPES.map((t) => (
             <button key={t.value} type="button" role="radio" aria-checked={bg.type === t.value}
               onClick={() => { if (t.value === "image" && !bg.image.assetId) fileRef.current?.click(); else setBg({ type: t.value }, "background type"); }}
-              className={`h-10 rounded-lg border text-xs font-medium ${bg.type === t.value ? "border-brand bg-brand/10 text-brand" : "border-line text-ink-3 hover:bg-surface"}`}>
+              className={`h-10 rounded-lg border text-xs font-semibold transition-colors ${bg.type === t.value ? "border-[#0733eb] bg-gradient-to-b from-[#0733eb] to-[#156de3] text-white shadow-sm" : "border-line text-ink-3 hover:bg-surface"}`}>
               {t.label}
             </button>
           ))}
