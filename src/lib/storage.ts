@@ -67,6 +67,27 @@ export async function deleteProject(p: Project) {
 
 export async function setMeta<T>(key: string, v: T) { try { await (await db()).put("meta", v, key); } catch (e) { wrap(e); } }
 export async function getMeta<T>(key: string): Promise<T | undefined> { try { return (await db()).get("meta", key); } catch { return undefined; } }
+export async function delMeta(key: string) { try { await (await db()).delete("meta", key); } catch { /* ignore */ } }
+
+/**
+ * Session-only editing: projects and image bytes are never persisted.
+ * Wipes any previously stored projects/masks/assets so a reload or a return
+ * to the editor always starts empty. Swatches/presets are user preferences
+ * and are intentionally kept.
+ */
+export async function clearSavedProjects() {
+  try {
+    const d = await db();
+    const tx = d.transaction(["projects", "masks", "assets"], "readwrite");
+    await Promise.all([
+      tx.objectStore("projects").clear(),
+      tx.objectStore("masks").clear(),
+      tx.objectStore("assets").clear(),
+    ]);
+    await tx.done;
+  } catch { /* ignore — editing still works fully in memory */ }
+  await delMeta("active");
+}
 
 export async function storageEstimate(): Promise<{ usage: number; quota: number } | null> {
   if (!navigator.storage?.estimate) return null;

@@ -2,11 +2,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { MAX_BATCH, type ModelKey } from "@/lib/config";
 import { History, type MaskReserve, type ShadowEraseSnap, type Snapshot } from "@/lib/history";
-import { resampleMask, transformMaskForInput, type MaskRect } from "@/lib/imageops";
+import { hasUserEdits, resampleMask, transformMaskForInput, type MaskRect } from "@/lib/imageops";
 import { ingestFile, pendingFiles } from "@/lib/ingest";
 import { ctx2d, Renderer } from "@/lib/render";
 import { cancelSegment, segment, type SegStage } from "@/lib/segmentation";
-import { deleteProject, getAsset, getMeta, listProjects, loadMasks, putAsset, QuotaError, saveProject, setMeta } from "@/lib/storage";
+import { clearSavedProjects, deleteProject, getAsset, getMeta, setMeta } from "@/lib/storage";
 import { inputKey, newId, type InputTransform, type Project, type ProjectState } from "@/lib/types";
 import { formatBytes } from "@/lib/validate";
 
@@ -58,8 +58,6 @@ export function useEditorStore() {
   const pending = useRef<Snapshot | null>(null);
   const blobs = useRef(new Map<string, Blob>());
   const segJob = useRef<string | null>(null);
-  const savedMaskVersion = useRef(-1);
-  const savedShadowVersion = useRef(-1);
   const openSeq = useRef(0);
 
   const setState = useCallback((s: ProjectState) => { stateRef.current = s; setStateRaw(s); }, []);
@@ -140,31 +138,21 @@ export function useEditorStore() {
         if (!blob) throw new Error("The original image for this project is missing from browser storage.");
         bm = await createImageBitmap(blob, { imageOrientation: "from-image" });
       }
-      const masks = await loadMasks(p.id).catch(() => undefined);
       if (seq !== openSeq.current) return;
       renderer.original?.close?.();
       renderer.setOriginal(bm);
       renderer.setInput(p.state.input);
-      const ok = masks && masks.width === p.state.input.width && masks.height === p.state.input.height;
-      autoMask.current = ok ? masks!.auto : null;
-      renderer.setMask(ok ? masks!.current : null);
-      const reserve = ok ? masks!.maskReserve : null;
-      maskReserve.current = reserve && reserve.current.length === reserve.input.width * reserve.input.height &&
-        (!reserve.auto || reserve.auto.length === reserve.current.length) ? reserve : null;
-      savedMaskVersion.current = renderer.maskVersion;
-      const se = masks?.shadowErase;
-      if (se && masks!.sew === p.state.canvas.width && masks!.seh === p.state.canvas.height && se.length === masks!.sew! * masks!.seh!) {
-        renderer.setShadowErase(se, masks!.sew!, masks!.seh!);
-      } else {
-        renderer.setShadowErase(null, 0, 0);
-      }
-      savedShadowVersion.current = renderer.shadowVersion;
+      // Session-only editing: never restore masks from storage. A freshly
+      // opened image always starts without a cutout.
+      autoMask.current = null;
+      maskReserve.current = null;
+      renderer.setMask(null);
+      renderer.setShadowErase(null, 0, 0);
       renderer.bgImage = null;
       history.clear(); pending.current = null;
-      setProj(ok ? p : { ...p, maskInputKey: null });
-      setState(p.state); setSaveStatus("saved"); setSaveError(null); setSeg(null);
+      setProj({ ...p, maskInputKey: null });
+      setState(p.state); setSaveStatus("idle"); setSaveError(null); setSeg(null);
       setMaskTick((t) => t + 1); setHistTick((t) => t + 1);
-      setMeta("active", p.id).catch(() => {});
       say(`Opened ${p.original.name}`);
     } catch (e) {
       say(e instanceof Error ? e.message : "Could not open project");
@@ -181,11 +169,10 @@ export function useEditorStore() {
       const row: UploadRow = { id: newId(), name: f.name, size: f.size, status: "reading", file: f, abort: new AbortController() };
       setUploads((u) => [...u, row]);
       try {
-        const { project: p, bitmap, blob, saveError: se } = await ingestFile(f, row.abort.signal);
+        const { project: p, bitmap, blob } = await ingestFile(f, row.abort.signal);
         blobs.current.set(p.originalAssetId, blob);
         setUploads((u) => u.filter((x) => x.id !== row.id));
         setItems((xs) => [{ project: p, thumb: URL.createObjectURL(blob), status: "idle" }, ...xs]);
-        if (se) { setSaveStatus("error"); setSaveError(se); }
         if (first) { first = false; await open(p, bitmap); } else bitmap.close();
       } catch (e) {
         const cancelled = e instanceof DOMException && e.name === "AbortError";
@@ -217,23 +204,43 @@ export function useEditorStore() {
     say("Project deleted");
   }, [items, open, setProj, renderer, history, say]);
 
-  // Initial load: recover saved projects, then consume files from the landing page.
+  // Warn before reload/close with unexported work. Nothing is saved, so
+  // leaving discards the image and all edits — export first.
+  const hasWorkRef = useRef(false);
+  hasWorkRef.current = items.length > 0 || uploads.length > 0;
+  useEffect(() => {
+    const h = (ev: BeforeUnloadEvent) => {
+      if (!hasWorkRef.current) return;
+      ev.preventDefault();
+      ev.returnValue =
+        "Your image and edits are not saved. Export your image before leaving, or it will be lost.";
+    };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, []);
+
+  // Leaving the editor panel discards everything: revoke thumbnail URLs and
+  // wipe any stored copies so the previous image can never come back.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  useEffect(() => () => {
+    for (const it of itemsRef.current) if (it.thumb) URL.revokeObjectURL(it.thumb);
+    pendingFiles.splice(0);
+    clearSavedProjects();
+  }, []);
+
+  // Initial load: editing is session-only, so wipe anything previously stored
+  // and always start empty. Files handed from the landing page (in-memory)
+  // are still consumed. Brush presets are kept — they are not images.
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const [ps, active, sw] = await Promise.all([listProjects(), getMeta<string>("active"), getMeta<string[]>("swatches")]);
+        const [sw] = await Promise.all([getMeta<string[]>("swatches"), clearSavedProjects()]);
         if (!alive) return;
         if (sw?.length) setSwatches(sw);
-        const its: Item[] = [];
-        for (const p of ps.slice(0, MAX_BATCH)) {
-          const b = await blobFor(p.originalAssetId);
-          its.push({ project: p, thumb: b ? URL.createObjectURL(b) : null, status: p.maskInputKey ? "done" : "idle" });
-        }
-        setItems(its);
-        const files = pendingFiles.splice(0);
-        if (!files.length) { const a = its.find((i) => i.project.id === active) ?? its[0]; if (a) await open(a.project); }
         setLoaded(true);
+        const files = pendingFiles.splice(0);
         if (files.length) addFilesRef.current?.(files);
       } catch (e) {
         setLoaded(true); setSaveStatus("error"); setSaveError(e instanceof Error ? e.message : String(e));
@@ -245,38 +252,14 @@ export function useEditorStore() {
   const addFilesRef = useRef(addFiles);
   useEffect(() => { addFilesRef.current = addFiles; }, [addFiles]);
 
-  // ---------- autosave ----------
+  // ---------- session-only editing ----------
+  // Nothing is persisted: leaving the editor or reloading starts empty, so
+  // there is no autosave and no unsaved-changes warning on exit.
   useEffect(() => {
-    if (saveStatus !== "unsaved" || !project || !state) return;
-    const t = setTimeout(async () => {
-      setSaveStatus("saving");
-      const p: Project = { ...project, state, updatedAt: Date.now() };
-      const maskChanged = savedMaskVersion.current !== renderer.maskVersion;
-      const shadowChanged = savedShadowVersion.current !== renderer.shadowVersion;
-      const mv = renderer.maskVersion, sv = renderer.shadowVersion;
-      try {
-        await saveProject(p, (maskChanged || shadowChanged) ? {
-          auto: autoMask.current, current: renderer.mask, width: renderer.ww, height: renderer.wh,
-          maskReserve: maskReserve.current,
-          shadowErase: renderer.shadowErase, sew: renderer.shadowEraseW, seh: renderer.shadowEraseH,
-        } : undefined);
-        savedMaskVersion.current = mv;
-        savedShadowVersion.current = sv;
-        setItems((xs) => xs.map((x) => (x.project.id === p.id ? { ...x, project: p } : x)));
-        setSaveStatus((s) => (s === "saving" ? "saved" : s)); setSaveError(null);
-      } catch (e) {
-        setSaveStatus("error");
-        setSaveError(e instanceof QuotaError ? e.message : `Saving failed: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    }, 900);
-    return () => clearTimeout(t);
-  }, [saveStatus, project, state, maskTick, shadowTick, renderer]);
-
-  useEffect(() => {
-    const h = (e: BeforeUnloadEvent) => { if (saveStatus === "unsaved" || saveStatus === "saving" || saveStatus === "error") { e.preventDefault(); e.returnValue = ""; } };
-    window.addEventListener("beforeunload", h);
-    return () => window.removeEventListener("beforeunload", h);
-  }, [saveStatus]);
+    if (!project || !state) return;
+    setItems((xs) => xs.map((x) => (x.project.id === project.id ? { ...x, project: { ...project, state } } : x)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   // ---------- background image asset ----------
   const bgAssetId = state?.background.image.assetId ?? null;
@@ -298,7 +281,6 @@ export function useEditorStore() {
     const id = newId();
     const blob = file.slice(0, file.size, dec.type);
     blobs.current.set(id, blob);
-    await putAsset(id, blob).catch((e) => { setSaveStatus("error"); setSaveError(e instanceof Error ? e.message : String(e)); });
     commit((s) => ({ ...s, background: { ...s.background, type: "image", image: { ...s.background.image, assetId: id, name: file.name, crop: { x: 0, y: 0, w: 1, h: 1 }, x: 0, y: 0, scale: 1, rotation: 0 } } }), "background image");
   }, [commit]);
 
@@ -473,8 +455,12 @@ export function useEditorStore() {
   }, []);
 
   const hasMask = !!renderer.mask;
+  // Before/after comparison is only meaningful once the background has been
+  // removed or the user has changed something (background, colours, subject,
+  // shadow, edges, canvas size).
+  const canCompare = hasMask || (state ? hasUserEdits(state) : false);
   return {
-    renderer, history, items, setItems, uploads, project, state, loaded, maskTick, setMaskTick, bgTick, histTick, saveStatus, saveError, seg, announce, say,
+    renderer, history, items, setItems, uploads, project, state, loaded, maskTick, setMaskTick, bgTick, histTick, saveStatus, saveError, seg, announce, say, canCompare,
     tool, setTool, brush, setBrush, brushMode, setBrushMode, shadowBrush, setShadowBrush, shadowTick, overlay, setOverlay, swatches, saveSwatch, model, setModel,
     begin, update, end, commit, pushMaskHistory, completeMaskStroke, pushShadowHistory, clearShadowErase, eraseAllShadow, undo, redo, open, addFiles, retryUpload, dismissUpload, removeItem, patchItem,
     runRemoval, cancelRemoval, resetMask, applyInput, setBackgroundImage, hasMask, hasMaskReserve: !!maskReserve.current,

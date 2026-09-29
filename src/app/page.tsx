@@ -1,6 +1,5 @@
 import { Eraser, Image as ImageIcon, Layers, Lock, Maximize2, Palette, Scissors, Shrink, SlidersHorizontal, SunDim } from "lucide-react";
 import LandingUpload from "@/components/LandingUpload";
-import { SiteFooter, SiteHeader } from "@/components/site";
 import { APP_NAME, MAX_BATCH, MAX_DECODED_PIXELS, MAX_FILE_BYTES, PARENT_SITE_URL } from "@/lib/config";
 
 const FEATURES = [
@@ -12,13 +11,12 @@ const FEATURES = [
   { icon: SunDim, title: "Rendered shadows", body: "Drop shadow that follows the subject’s silhouette, plus a soft ground shadow. Exported with transparency." },
   { icon: Shrink, title: "Compression", body: "Compress the original or the edit to JPG, WebP or PNG, with real encoded sizes and an optional target size." },
   { icon: Layers, title: "Batch & ZIP", body: `Process up to ${MAX_BATCH} of your images with shared settings and download the results as a ZIP.` },
-  { icon: Lock, title: "Private by design", body: "Images are processed in your browser and saved only in this browser’s storage. No account needed." },
+  { icon: Lock, title: "Private by design", body: "Images are processed in your browser and kept only while this tab is open. Nothing is uploaded or stored. No account needed." },
 ];
 
 export default function Home() {
   return (
     <>
-      <SiteHeader />
       <main>
         <section className="hero-gradient relative overflow-hidden">
           <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 lg:grid-cols-[1.05fr_1fr] lg:py-16">
@@ -30,7 +28,7 @@ export default function Home() {
               </p>
               <ul className="mt-5 space-y-1.5 text-sm text-white/90">
                 <li>✓ Runs in your browser — images are not uploaded to a server</li>
-                <li>✓ No account required, work is autosaved locally</li>
+                <li>✓ No account required, nothing is saved — leaving or reloading starts fresh</li>
                 <li>✓ Works on desktop, tablet and phone</li>
               </ul>
             </div>
@@ -77,7 +75,6 @@ export default function Home() {
           </div>
         </section>
       </main>
-      <SiteFooter />
     </>
   );
 }

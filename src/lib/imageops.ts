@@ -1,9 +1,28 @@
 // Pure pixel operations shared by preview and export rendering. No DOM access here,
 // so the same code runs in tests and in the browser.
-import type { Adjustments, InputTransform } from "./types";
+import type { Adjustments, InputTransform, ProjectState } from "./types";
 
 export const isNeutral = (a: Adjustments) =>
   !a.exposure && !a.contrast && !a.saturation && !a.temperature && !a.tint && !a.highlights && !a.shadows && !a.sharpness;
+
+/**
+ * True once the user has changed anything visible: input transform, background,
+ * colours, subject transform, shadows, mask edges, or canvas size. Used to keep
+ * before/after comparison disabled until there is something to compare.
+ */
+export function hasUserEdits(s: ProjectState): boolean {
+  const inp = s.input;
+  if (inp.rotate !== 0 || inp.flipH || inp.flipV) return true;
+  if (inp.crop.x !== 0 || inp.crop.y !== 0 || inp.crop.w !== 1 || inp.crop.h !== 1) return true;
+  if (s.background.type !== "transparent") return true;
+  if (!isNeutral(s.adjust.subject) || !isNeutral(s.adjust.background) || !isNeutral(s.adjust.global)) return true;
+  const t = s.subject;
+  if (t.scale !== 1 || t.x !== 0.5 || t.y !== 0.5 || t.rotation !== 0 || t.flipH || t.flipV) return true;
+  if (s.shadow.drop.enabled || s.shadow.contact.enabled) return true;
+  if (s.refine.feather !== 0 || s.refine.expand !== 0) return true;
+  if (s.canvas.width !== s.input.width || s.canvas.height !== s.input.height) return true;
+  return false;
+}
 
 const clamp255 = (v: number) => (v < 0 ? 0 : v > 255 ? 255 : v);
 

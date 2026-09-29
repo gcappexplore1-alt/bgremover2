@@ -10,7 +10,7 @@ type Compare = "off" | "slider" | "side";
 
 export default function Viewport() {
   const e = useEditor();
-  const { renderer, state, maskTick, shadowTick, bgTick, overlay, tool, brushMode, shadowBrush, brush, seg, hasMask, project } = e;
+  const { renderer, state, maskTick, shadowTick, bgTick, overlay, tool, brushMode, shadowBrush, brush, seg, hasMask, project, canCompare } = e;
   const wrap = useRef<HTMLDivElement>(null);
   const editedRef = useRef<HTMLCanvasElement>(null);
   const origRef = useRef<HTMLCanvasElement>(null);
@@ -29,6 +29,8 @@ export default function Viewport() {
   // Reveal sweep 0..100 while the cutout is unveiled; null when idle.
   const [reveal, setReveal] = useState<number | null>(null);
   const zoomRef = useRef(zoom); const panRef = useRef(pan);
+  const canCompareRef = useRef(canCompare);
+  canCompareRef.current = canCompare;
   // Keep gesture positions synchronous. Reading a mutable gesture ref from inside a
   // queued React state updater makes drags lose their delta (especially at 100%).
   const moveView = useCallback((next: { x: number; y: number }) => {
@@ -172,7 +174,7 @@ export default function Viewport() {
       const t = ev.target as HTMLElement;
       if (t.closest("input,textarea,select,[contenteditable]")) return;
       if (ev.code === "Space") { setSpace(true); if (t === document.body || t.closest("[data-viewport]")) ev.preventDefault(); }
-      if (ev.key === "\\") setHoldOrig(true);
+      if (ev.key === "\\" && canCompareRef.current) setHoldOrig(true);
       if (ev.metaKey || ev.ctrlKey) return;
       if (ev.key === "+" || ev.key === "=") zoomAt(0, 0, zoomRef.current * 1.25);
       if (ev.key === "-") zoomAt(0, 0, zoomRef.current / 1.25);
@@ -352,14 +354,16 @@ export default function Viewport() {
       aria-label="View controls"
       onPointerDown={(ev) => ev.stopPropagation()}
       onWheel={(ev) => ev.stopPropagation()}
-      className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 overflow-visible rounded-2xl border border-white/70 bg-[#e9efff]/90 px-3 py-2 shadow-[0_12px_32px_rgba(7,51,235,0.16)] backdrop-blur-xl"
+      className="pointer-events-auto flex w-max max-w-full flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar rounded-2xl border border-white/70 bg-[#e9efff]/90 px-3 py-2 shadow-[0_12px_32px_rgba(7,51,235,0.16)] backdrop-blur-xl"
     >
       <div className="flex shrink-0 items-center gap-1 rounded-xl border border-[#d7e4ff] bg-white p-1 shadow-sm" role="group" aria-label="Before and after">
         <button
           type="button"
           aria-pressed={beforeActive}
           onClick={showBefore}
-          className={`flex h-9 items-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold transition-colors ${beforeActive ? "bg-gradient-to-b from-[#0733eb] to-[#156de3] text-white shadow-sm" : "text-[#2e44a7] hover:bg-[#eef4ff]"}`}
+          disabled={!canCompare}
+          title={canCompare ? "Show the original image" : "Remove the background or make an edit to enable comparison"}
+          className={`flex h-9 items-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${beforeActive ? "bg-gradient-to-b from-[#0733eb] to-[#156de3] text-white shadow-sm" : "text-[#2e44a7] hover:bg-[#eef4ff]"}`}
         >
           <BeforeIcon filled={beforeActive} /> Before
         </button>
@@ -367,7 +371,9 @@ export default function Viewport() {
           type="button"
           aria-pressed={afterActive}
           onClick={showAfter}
-          className={`flex h-9 items-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold transition-colors ${afterActive ? "bg-gradient-to-b from-[#0733eb] to-[#156de3] text-white shadow-sm" : "text-[#2e44a7] hover:bg-[#eef4ff]"}`}
+          disabled={!canCompare}
+          title={canCompare ? "Show the edited image" : "Remove the background or make an edit to enable comparison"}
+          className={`flex h-9 items-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${afterActive ? "bg-gradient-to-b from-[#0733eb] to-[#156de3] text-white shadow-sm" : "text-[#2e44a7] hover:bg-[#eef4ff]"}`}
         >
           <BeforeIcon filled={afterActive} /> After
         </button>
@@ -375,12 +381,13 @@ export default function Viewport() {
 
       <span className="h-8 w-px shrink-0 bg-[#d3ddf7]" aria-hidden />
 
-      <Tip text="Split view (before & after)">
+      <Tip text={canCompare ? "Split view (before & after)" : "Remove the background or make an edit to enable comparison"}>
         <button
           type="button"
           aria-pressed={splitActive}
           onClick={toggleSplit}
-          className={`flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-4 text-[13px] font-semibold transition-colors ${splitActive ? "bg-gradient-to-b from-[#0733eb] to-[#156de3] text-white shadow-sm" : "border border-[#d7e4ff] bg-white text-[#2e44a7] shadow-sm hover:bg-[#eef4ff]"}`}
+          disabled={!canCompare}
+          className={`flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-4 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${splitActive ? "bg-gradient-to-b from-[#0733eb] to-[#156de3] text-white shadow-sm" : "border border-[#d7e4ff] bg-white text-[#2e44a7] shadow-sm hover:bg-[#eef4ff]"}`}
         >
           <Columns2 size={16} /> Compare
         </button>
@@ -419,12 +426,13 @@ export default function Viewport() {
             <Maximize size={16} />
           </button>
         </Tip>
-        <Tip text={wipeActive ? "Comparison slider on — select again for single view" : "Comparison slider to compare before & after"}>
+        <Tip text={!canCompare ? "Remove the background or make an edit to enable comparison" : wipeActive ? "Comparison slider on — select again for single view" : "Comparison slider to compare before & after"}>
           <button
             type="button"
             aria-pressed={wipeActive}
             onClick={toggleWipe}
-            className={`flex h-9 items-center gap-1.5 rounded-xl px-3 text-[13px] font-medium transition-colors ${wipeActive ? "bg-gradient-to-b from-[#0733eb] to-[#156de3] text-white shadow-sm" : "border border-[#d7e4ff] bg-white text-[#2e44a7] shadow-sm hover:bg-[#eef4ff]"}`}
+            disabled={!canCompare}
+            className={`flex h-9 items-center gap-1.5 rounded-xl px-3 text-[13px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${wipeActive ? "bg-gradient-to-b from-[#0733eb] to-[#156de3] text-white shadow-sm" : "border border-[#d7e4ff] bg-white text-[#2e44a7] shadow-sm hover:bg-[#eef4ff]"}`}
           >
             <ArrowLeftRight size={14} className={wipeActive ? "text-white/85" : "text-[#2e44a7]"} /> Comparison slider
           </button>
@@ -503,8 +511,10 @@ export default function Viewport() {
                 )}
                 {showScan && (
                   <div className="reveal-scan" aria-hidden>
-                    <div className="reveal-scan-bar" />
-                    <div className="reveal-scan-line" />
+                    <div className="reveal-scan-beam">
+                      <div className="reveal-scan-wash" />
+                      <div className="reveal-scan-core" />
+                    </div>
                   </div>
                 )}
               </>,
@@ -589,7 +599,7 @@ function Tip({ text, children }: { text: string; children: React.ReactNode }) {
   );
 }
 
-function BeforeIcon({ filled }: { filled: boolean }) {
+export function BeforeIcon({ filled }: { filled: boolean }) {
   const stroke = filled ? "#ffffff" : "#2e44a7";
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">

@@ -1,7 +1,6 @@
 import { DEFAULT_WORKING_SIDE, MAX_OUTPUT_PIXELS } from "./config";
 import { sanitizeName } from "./encode";
 import { fitDims } from "./imageops";
-import { putAsset, saveProject } from "./storage";
 import { defaultState, newId, SCHEMA_VERSION, type Project } from "./types";
 import { validateAndDecode } from "./validate";
 
@@ -20,14 +19,9 @@ export async function ingestFile(file: File, signal?: AbortSignal): Promise<{ pr
     maskInputKey: null, model: null, state: defaultState(width, height, `${name}-edited`),
   };
   if (signal?.aborted) { dec.bitmap.close(); throw new DOMException("Cancelled", "AbortError"); }
-  // Immutable copy of the original bytes; never modified afterwards.
+  // Immutable copy of the original bytes, kept in memory for this visit only.
+  // Nothing is written to storage: leaving or reloading starts empty.
   const blob = file.slice(0, file.size, dec.type);
-  let saveError: string | null = null;
-  try {
-    await putAsset(assetId, blob);
-    await saveProject(project, { auto: null, current: null, width, height });
-  } catch (e) {
-    saveError = e instanceof Error ? e.message : String(e);
-  }
+  const saveError: string | null = null;
   return { project, bitmap: dec.bitmap, blob, saveError };
 }

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { sanitizeName, uniqueName } from "../src/lib/encode";
 import { History } from "../src/lib/history";
-import { applyAdjustments, applyEraseToAlpha, blurRGBA, fitDims, hexToRgb, morph, paintDab, refineMask, resampleMask, rgbToHex, transformMaskForInput, validateDims } from "../src/lib/imageops";
+import { applyAdjustments, applyEraseToAlpha, blurRGBA, fitDims, hasUserEdits, hexToRgb, morph, paintDab, refineMask, resampleMask, rgbToHex, transformMaskForInput, validateDims } from "../src/lib/imageops";
 import { alignSubject, padCanvas, resizeCanvasState } from "../src/lib/layout";
 import { defaultState, inputKey, ZERO_ADJ } from "../src/lib/types";
 import { headerDims, sniffBytes } from "../src/lib/validate";
@@ -216,5 +216,23 @@ describe("misc", () => {
     expect(u?.label).toBe("4");
     expect(u?.autoMask).toBe(automatic);
     expect(h.canRedo).toBe(true);
+  });
+});
+
+describe("comparison gating (hasUserEdits)", () => {
+  it("fresh state has no edits", () => {
+    expect(hasUserEdits(defaultState(800, 600, "x"))).toBe(false);
+  });
+  it("detects each edit category", () => {
+    const base = () => defaultState(800, 600, "x");
+    expect(hasUserEdits({ ...base(), background: { ...base().background, type: "color" } })).toBe(true);
+    expect(hasUserEdits({ ...base(), adjust: { ...base().adjust, subject: { ...ZERO_ADJ, exposure: 10 } } })).toBe(true);
+    expect(hasUserEdits({ ...base(), subject: { ...base().subject, scale: 1.5 } })).toBe(true);
+    expect(hasUserEdits({ ...base(), shadow: { ...base().shadow, drop: { ...base().shadow.drop, enabled: true } } })).toBe(true);
+    expect(hasUserEdits({ ...base(), refine: { feather: 2, expand: 0 } })).toBe(true);
+    expect(hasUserEdits({ ...base(), canvas: { ...base().canvas, width: 400 } })).toBe(true);
+    expect(hasUserEdits({ ...base(), input: { ...base().input, rotate: 90 } })).toBe(true);
+    expect(hasUserEdits({ ...base(), input: { ...base().input, flipH: true } })).toBe(true);
+    expect(hasUserEdits({ ...base(), input: { ...base().input, crop: { x: 0.1, y: 0, w: 0.9, h: 1 } } })).toBe(true);
   });
 });

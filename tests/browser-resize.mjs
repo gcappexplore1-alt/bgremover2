@@ -49,7 +49,7 @@ try {
 
   await page.getByRole("button", { name: "Resize", exact: true }).first().click();
   const aside = page.locator("aside");
-  const toolbar = page.locator("#view-toolbar-slot");
+  const toolbar = page.locator("#viewport-toolbar-slot");
   const dims = () => toolbar.locator("text=/Canvas .* Working .*/").textContent();
   assert.equal(await aside.getByRole("tab", { name: /Canvas/ }).getAttribute("aria-selected"), "true");
   assert.equal(await aside.getByRole("button", { name: /Apply/ }).count(), 0, "No Apply buttons in resize");

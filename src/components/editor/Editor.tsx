@@ -9,6 +9,7 @@ import { formatBytes } from "@/lib/validate";
 import UploadDrop from "../UploadDrop";
 import { Button, Hint, IconButton } from "../ui";
 import BatchDialog from "./BatchDialog";
+import { DisabledCutoutPanel, DisabledViewToolbar } from "./DisabledShell";
 import { CompressPanel, ExportDialog } from "./output";
 import { AdjustPanel, BackgroundPanel, CutoutPanel } from "./panels1";
 import { ResizePanel } from "./ResizePanel";
@@ -90,6 +91,7 @@ function EditorInner({ embedded }: { embedded: boolean }) {
     { cutout: <CutoutPanel />, background: <BackgroundPanel />, adjust: <AdjustPanel />, resize: <ResizePanel />, shadow: <ShadowPanel />, compress: <CompressPanel /> }[e.tool]
   ) : null;
   const toolLabel = TOOLS.find((t) => t.id === e.tool)!.label;
+  const hasProject = !!(e.state && e.project);
 
   return (
     <div className="flex h-dvh flex-col bg-white">
@@ -97,23 +99,23 @@ function EditorInner({ embedded }: { embedded: boolean }) {
       {/* Top bar */}
       <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-line-soft px-2 py-1 sm:px-3">
         {embedded && <span className="hidden text-sm font-bold text-brand sm:inline">{APP_NAME}</span>}
-        {e.project && e.state ? (
-          <>
-            <input aria-label="Project name" value={e.project.name} className="h-9 min-w-0 max-w-[40vw] rounded-md border border-transparent px-2 text-sm font-medium hover:border-line focus:border-brand sm:max-w-xs"
-              onChange={(ev) => e.rename(ev.target.value)} title={`Original file: ${e.project.original.name} (${e.project.original.width}×${e.project.original.height}, ${formatBytes(e.project.original.size)})`} />
-            <div id="viewport-toolbar-slot" className="order-3 flex w-full min-w-0 flex-1 items-center justify-center md:order-2 md:w-auto" />
-            <div className="order-2 ml-auto flex items-center gap-1 md:order-3">
-              <IconButton label="Undo (Ctrl+Z)" disabled={!e.history.canUndo} onClick={e.undo}><Undo2 size={18} /></IconButton>
-              <IconButton label="Redo (Ctrl+Shift+Z)" disabled={!e.history.canRedo} onClick={e.redo}><Redo2 size={18} /></IconButton>
-              <Button size="sm" className="hidden sm:inline-flex" onClick={() => fileRef.current?.click()}><Upload size={15} /> Upload</Button>
-              <IconButton label="Upload another image" className="sm:hidden" onClick={() => fileRef.current?.click()}><Upload size={18} /></IconButton>
-              {e.items.length > 1 && <Button size="sm" onClick={() => setBatchOpen(true)}><Layers size={15} /><span className="hidden sm:inline">Batch</span></Button>}
-              <Button variant="accent" size="sm" onClick={() => setExportOpen(true)}><Download size={15} /> Export</Button>
-            </div>
-          </>
+        {hasProject ? (
+          <input aria-label="Project name" value={e.project!.name} className="h-9 min-w-0 max-w-[40vw] rounded-md border border-transparent px-2 text-sm font-medium hover:border-line focus:border-brand sm:max-w-xs"
+            onChange={(ev) => e.rename(ev.target.value)} title={`Original file: ${e.project!.original.name} (${e.project!.original.width}×${e.project!.original.height}, ${formatBytes(e.project!.original.size)})`} />
         ) : (
           <span className="text-sm text-muted">Upload an image to start editing</span>
         )}
+        <div id="viewport-toolbar-slot" className="no-scrollbar order-3 flex w-full min-w-0 flex-1 items-center justify-center overflow-x-auto md:order-2 md:w-auto">
+          {!hasProject && <DisabledViewToolbar />}
+        </div>
+        <div className="order-2 ml-auto flex items-center gap-1 md:order-3">
+          <IconButton label="Undo (Ctrl+Z)" disabled={!e.history.canUndo} onClick={e.undo}><Undo2 size={18} /></IconButton>
+          <IconButton label="Redo (Ctrl+Shift+Z)" disabled={!e.history.canRedo} onClick={e.redo}><Redo2 size={18} /></IconButton>
+          <Button size="sm" className="hidden sm:inline-flex" onClick={() => fileRef.current?.click()}><Upload size={15} /> Upload</Button>
+          <IconButton label="Upload another image" className="sm:hidden" onClick={() => fileRef.current?.click()}><Upload size={18} /></IconButton>
+          {hasProject && e.items.length > 1 && <Button size="sm" onClick={() => setBatchOpen(true)}><Layers size={15} /><span className="hidden sm:inline">Batch</span></Button>}
+          <Button variant="accent" size="sm" disabled={!hasProject} onClick={() => setExportOpen(true)}><Download size={15} /> Export</Button>
+        </div>
         <input ref={fileRef} type="file" multiple accept={ACCEPT_ATTR} className="hidden" aria-label="Upload images" onChange={(ev) => { const f = [...(ev.target.files ?? [])]; ev.target.value = ""; if (f.length) e.addFiles(f); }} />
       </header>
 
@@ -136,57 +138,47 @@ function EditorInner({ embedded }: { embedded: boolean }) {
         </ul>
       )}
 
-      {!e.state || !e.project ? (
-        <div className="grid flex-1 place-items-center overflow-y-auto bg-surface p-4">
-          <div className="w-full max-w-xl">
-            {!e.loaded ? <p className="text-center text-sm text-muted"><Loader2 className="mx-auto mb-2 animate-spin" />Loading…</p> : (
-              <>
-                <h1 className="mb-2 text-center text-2xl font-semibold text-ink-2">Start with your own image</h1>
-                <p className="mb-5 text-center text-sm text-ink-3">Nothing is loaded yet. Your images are processed on this device.</p>
-                <UploadDrop onFiles={e.addFiles} />
-              </>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="flex min-h-0 flex-1">
-          {/* Left rail (desktop/tablet) — full-height flush column, square bottom */}
-          <div className="hidden w-[128px] shrink-0 flex-col bg-[#152a63] rounded-tr-2xl md:flex">
-            <nav aria-label="Tools" className="flex flex-1 flex-col gap-1 p-2">
-              {TOOLS.map((t) => (
-                <button key={t.id} type="button" aria-pressed={e.tool === t.id} title={t.label} onClick={() => e.setTool(t.id)}
-                  className={`flex w-full min-w-0 flex-col items-center gap-1 rounded-xl px-2 py-3 text-center text-xs font-medium leading-tight transition-colors ${e.tool === t.id ? "bg-gradient-to-b from-[#156de3] to-[#0733eb] text-white shadow-md" : "text-white/75 hover:bg-white/10 hover:text-white"}`}>
-                  {t.icon}<span className="w-full break-words">{t.label}</span>
-                </button>
-              ))}
-            </nav>
-          </div>
-          <main className="flex min-w-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1"><Viewport /></div>
-            {e.items.length > 0 && <Tray />}
-          </main>
-          {/* Context panel (desktop/tablet) */}
-          {isDesktop && (
-            <aside aria-label={`${toolLabel} settings`} className="w-[320px] shrink-0 overflow-y-auto border-l border-line-soft bg-[#eef2ff] lg:w-[340px]">
-              <h2 className="sticky top-0 z-10 border-b border-[#e3e9ff] bg-[#eef2ff]/95 px-4 py-3 text-base font-bold text-[#2e44a7] backdrop-blur">{toolLabel}</h2>
-              <div className="space-y-3 p-3">{panel}</div>
-            </aside>
-          )}
-        </div>
-      )}
-
-      {/* Mobile bottom navigation + sheet */}
-      {e.state && !isDesktop && (
-        <>
-          <nav aria-label="Tools" className="order-2 flex shrink-0 overflow-x-auto border-t border-line-soft bg-white no-scrollbar">
+      <div className="flex min-h-0 flex-1">
+        {/* Left rail (desktop/tablet) — full-height flush column, square bottom */}
+        <div className="hidden w-[128px] shrink-0 flex-col bg-[#152a63] rounded-tr-2xl md:flex">
+          <nav aria-label="Tools" aria-disabled={!hasProject} className="flex flex-1 flex-col gap-1 p-2">
             {TOOLS.map((t) => (
-              <button key={t.id} type="button" aria-pressed={e.tool === t.id && sheet} title={t.label} onClick={() => { if (e.tool === t.id) setSheet(!sheet); else { e.setTool(t.id); setSheet(true); } }}
-                className={`flex min-w-[68px] flex-1 flex-col items-center gap-0.5 px-1 py-2 text-center text-[10px] font-medium leading-tight ${e.tool === t.id && sheet ? "text-brand" : "text-ink-3"}`}>
+              <button key={t.id} type="button" aria-pressed={hasProject && e.tool === t.id} title={hasProject ? t.label : `${t.label} (upload an image to enable)`} disabled={!hasProject} onClick={() => { if (hasProject) e.setTool(t.id); }}
+                className={`flex w-full min-w-0 flex-col items-center gap-1 rounded-xl px-2 py-3 text-center text-xs font-medium leading-tight transition-colors disabled:cursor-not-allowed ${hasProject && e.tool === t.id ? "bg-gradient-to-b from-[#156de3] to-[#0733eb] text-white shadow-md" : "text-white/75 hover:bg-white/10 hover:text-white disabled:opacity-60"}`}>
                 {t.icon}<span className="w-full break-words">{t.label}</span>
               </button>
             ))}
           </nav>
-          {sheet && (
+        </div>
+        <main className="flex min-w-0 flex-1 flex-col">
+          {hasProject ? (
+            <div className="min-h-0 flex-1"><Viewport /></div>
+          ) : (
+            <EmptyCanvas />
+          )}
+          {e.items.length > 0 && <Tray />}
+        </main>
+        {/* Context panel (desktop/tablet) */}
+        {isDesktop && (
+          <aside aria-label={`${hasProject ? toolLabel : "Cutout"} settings`} aria-disabled={!hasProject} className="w-[320px] shrink-0 overflow-y-auto border-l border-line-soft bg-[#eef2ff] lg:w-[340px]">
+            <h2 className="sticky top-0 z-10 border-b border-[#e3e9ff] bg-[#eef2ff]/95 px-4 py-3 text-base font-bold text-[#2e44a7] backdrop-blur">{hasProject ? toolLabel : "Cutout"}</h2>
+            <div className="space-y-3 p-3">{hasProject ? panel : <DisabledCutoutPanel />}</div>
+          </aside>
+        )}
+      </div>
+
+      {/* Mobile bottom navigation + sheet */}
+      {!isDesktop && (
+        <>
+          <nav aria-label="Tools" aria-disabled={!hasProject} className="order-2 flex shrink-0 overflow-x-auto border-t border-line-soft bg-white no-scrollbar">
+            {TOOLS.map((t) => (
+              <button key={t.id} type="button" aria-pressed={hasProject && e.tool === t.id && sheet} title={hasProject ? t.label : `${t.label} (upload an image to enable)`} disabled={!hasProject} onClick={() => { if (!hasProject) return; if (e.tool === t.id) setSheet(!sheet); else { e.setTool(t.id); setSheet(true); } }}
+                className={`flex min-w-[68px] flex-1 flex-col items-center gap-0.5 px-1 py-2 text-center text-[10px] font-medium leading-tight disabled:cursor-not-allowed disabled:opacity-50 ${hasProject && e.tool === t.id && sheet ? "text-brand" : "text-ink-3"}`}>
+                {t.icon}<span className="w-full break-words">{t.label}</span>
+              </button>
+            ))}
+          </nav>
+          {hasProject && sheet && (
             <div role="dialog" aria-label={`${toolLabel} settings`} className="order-1 max-h-[45dvh] shrink-0 overflow-y-auto rounded-t-2xl border-t border-line-soft bg-white shadow-[0_-8px_30px_rgba(15,23,42,.15)]">
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line-soft bg-white px-4 py-2">
                 <span className="mx-auto absolute left-1/2 top-1 h-1 w-10 -translate-x-1/2 rounded-full bg-slate-300" aria-hidden />
@@ -201,6 +193,36 @@ function EditorInner({ embedded }: { embedded: boolean }) {
 
       {e.state && <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />}
       <BatchDialog open={batchOpen} onClose={() => setBatchOpen(false)} />
+    </div>
+  );
+}
+
+function EmptyCanvas() {
+  const e = useEditor();
+  const incoming = e.uploads.length > 0;
+  return (
+    <div className="grid h-full place-items-center overflow-y-auto bg-surface p-6 sm:p-10" data-empty-canvas>
+      <div className="w-full max-w-2xl">
+        {!e.loaded || incoming ? (
+          <div className="text-center" role="status" aria-live="polite">
+            <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-brand" />
+            <h1 className="mb-3 text-center text-3xl font-bold tracking-tight text-ink-2">
+              {!e.loaded ? "Loading editor…" : "Preparing your image…"}
+            </h1>
+            <p className="mx-auto max-w-lg text-center text-[15px] leading-relaxed text-ink-3">
+              {!e.loaded
+                ? "Getting the workspace ready."
+                : "Checking the file and opening the editor. The upload option will appear if anything needs your attention."}
+            </p>
+          </div>
+        ) : (
+          <>
+            <h1 className="mb-3 text-center text-3xl font-bold tracking-tight text-ink-2">Start with your own image</h1>
+            <p className="mx-auto mb-8 max-w-lg text-center text-[15px] leading-relaxed text-ink-3">Nothing is loaded yet. Your images are processed on this device.</p>
+            <UploadDrop onFiles={e.addFiles} />
+          </>
+        )}
+      </div>
     </div>
   );
 }

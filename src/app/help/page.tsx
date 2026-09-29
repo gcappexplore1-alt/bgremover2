@@ -31,7 +31,7 @@ export default function Help() {
         <p className="mt-2 text-sm">Everything — decoding, background removal, editing and encoding — runs <b>on your device</b> in the browser. Your images are <b>not uploaded</b> to our server or any third-party service. The only network downloads are the application itself and the model weights, fetched from Hugging Face (or the site’s own model host if configured) and cached by your browser.</p>
 
         <h2 className="mt-8 text-xl font-semibold text-ink-2">Storage &amp; retention</h2>
-        <p className="mt-2 text-sm">Projects (original image, masks and settings) are autosaved in this browser’s IndexedDB so you can recover them after a refresh. They stay until you delete them (trash icon in the image tray) or clear site data. They are <b>not synced</b> across devices or browsers. The server keeps no copies of your images, so there is nothing server-side to delete.</p>
+        <p className="mt-2 text-sm">Projects (original image, masks and settings) live only in memory while this tab is open. Reloading the page or leaving the editor discards them — nothing is written to your device and nothing is uploaded. The server keeps no copies of your images, so there is nothing server-side to delete.</p>
 
         <h2 className="mt-8 text-xl font-semibold text-ink-2">Metadata</h2>
         <p className="mt-2 text-sm">Exports are re-encoded by the browser, which writes no EXIF, GPS/location or camera metadata. Orientation from the original EXIF is applied to the pixels on import.</p>

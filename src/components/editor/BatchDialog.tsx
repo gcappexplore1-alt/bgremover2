@@ -7,7 +7,6 @@ import { validateDims } from "@/lib/imageops";
 import { resizeCanvasState, type CanvasMode } from "@/lib/layout";
 import { ctx2d, Renderer, renderExport } from "@/lib/render";
 import { cancelSegment, segment } from "@/lib/segmentation";
-import { loadMasks, saveProject } from "@/lib/storage";
 import { inputKey, newId, type Project, type ProjectState } from "@/lib/types";
 import { formatBytes } from "@/lib/validate";
 import { Button, Dialog, Hint, Section, Segmented, Toggle } from "../ui";
@@ -25,6 +24,7 @@ export default function BatchDialog({ open, onClose }: { open: boolean; onClose:
   const [running, setRunning] = useState(false);
   const cancelled = useRef(false);
   const job = useRef<string | null>(null);
+  const updated = useRef(new Map<string, Project>());
   const list = e.items.filter((i) => !excluded.has(i.project.id));
 
   const setS = (id: string, status: ItemStatus, text?: string) => setStat((m) => new Map(m).set(id, { status, text }));
@@ -43,27 +43,23 @@ export default function BatchDialog({ open, onClose }: { open: boolean; onClose:
   const processOne = async (p: Project) => {
     setS(p.id, "processing", "Loading image…");
     const blob = await e.blobFor(p.originalAssetId);
-    if (!blob) throw new Error("Original image missing from storage.");
+    if (!blob) throw new Error("Original image is no longer in memory. Upload it again.");
     const bm = await createImageBitmap(blob, { imageOrientation: "from-image" });
     const r = new Renderer();
     try {
       r.setOriginal(bm); r.setInput(p.state.input);
       const key = inputKey(p.state.input);
-      const saved = await loadMasks(p.id).catch(() => undefined);
-      let mask = saved && p.maskInputKey === key && saved.width === r.ww && saved.height === r.wh ? saved.current : null;
-      let auto = saved?.auto ?? null;
-      if (!mask && opt.removeBg) {
+      // Session-only editing: no stored masks exist, so removal always runs fresh here.
+      let mask: Uint8Array | null = null;
+      if (opt.removeBg) {
         const id = newId(); job.current = id;
         const img = ctx2d(r.working!).getImageData(0, 0, r.ww, r.wh);
         mask = await segment(id, img, e.model, (s) => setS(p.id, "processing", s.kind === "inference" ? "Removing background…" : s.kind === "queued" ? "Queued" : "Loading model…"));
-        job.current = null; auto = mask;
+        job.current = null;
       }
       if (cancelled.current) throw new DOMException("Cancelled", "AbortError");
       r.setMask(mask);
-      // Each image keeps its own shadow brush edits (never copied between images).
-      const se = saved?.shadowErase;
-      if (se && saved.sew === p.state.canvas.width && saved.seh === p.state.canvas.height) r.setShadowErase(se, saved.sew, saved.seh);
-      else r.setShadowErase(null, 0, 0);
+      r.setShadowErase(null, 0, 0);
       r.bgImage = e.renderer.bgImage;
       const st = applySettings(p.state);
       const ve = validateDims(st.export.width, st.export.height, MAX_OUTPUT_SIDE, MAX_OUTPUT_PIXELS); if (ve) throw new Error(ve);
@@ -73,11 +69,7 @@ export default function BatchDialog({ open, onClose }: { open: boolean; onClose:
       const out = await encodeCanvas(c, st.export.format, st.export.quality);
       c.width = 0;
       const np: Project = { ...p, state: st, maskInputKey: mask ? key : null, model: mask ? (p.model ?? e.model) : p.model, updatedAt: Date.now() };
-      await saveProject(np, mask ? {
-        auto, current: mask, width: r.ww, height: r.wh,
-        maskReserve: saved?.maskReserve ?? null,
-        shadowErase: saved?.shadowErase ?? null, sew: saved?.sew ?? 0, seh: saved?.seh ?? 0,
-      } : undefined).catch(() => {});
+      updated.current.set(p.id, np);
       e.setItems((xs) => xs.map((x) => (x.project.id === p.id ? { ...x, project: np, status: mask ? "done" : x.status } : x)));
       setResults((m) => new Map(m).set(p.id, { blob: out, name: `${sanitizeName(p.name)}.${EXT[st.export.format]}` }));
       setS(p.id, "done", formatBytes(out.size));
@@ -96,11 +88,8 @@ export default function BatchDialog({ open, onClose }: { open: boolean; onClose:
       }
     }
     setRunning(false);
-    const active = e.project && e.items.find((x) => x.project.id === e.project!.id);
-    if (active && ids.includes(active.project.id)) {
-      const fresh = await import("@/lib/storage").then((m) => m.listProjects()).then((ps) => ps.find((q) => q.id === active.project.id));
-      if (fresh) e.open(fresh);
-    }
+    const active = e.project && ids.includes(e.project.id) ? updated.current.get(e.project.id) : undefined;
+    if (active) e.open(active);
     e.say("Batch finished");
   };
 
