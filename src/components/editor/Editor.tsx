@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { ACCEPT_ATTR, APP_NAME } from "@/lib/config";
+import { warmupModel } from "@/lib/segmentation";
 import { formatBytes } from "@/lib/validate";
 import UploadDrop from "../UploadDrop";
 import { Button, Hint, IconButton } from "../ui";
@@ -342,7 +343,7 @@ function EmptyCanvas() {
           <>
             <h1 className="mb-3 text-center text-3xl font-bold tracking-tight text-ink-2">Start with your own image</h1>
             <p className="mx-auto mb-8 max-w-lg text-center text-[15px] leading-relaxed text-ink-3">Nothing is loaded yet. Your images are processed on this device.</p>
-            <UploadDrop onFiles={e.addFiles} />
+            <UploadDrop onFiles={e.addFiles} onIntent={() => warmupModel("general")} />
           </>
         )}
       </div>

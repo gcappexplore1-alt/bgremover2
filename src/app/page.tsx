@@ -3,7 +3,7 @@ import LandingUpload from "@/components/LandingUpload";
 import { APP_NAME, MAX_BATCH, MAX_DECODED_PIXELS, MAX_FILE_BYTES, PARENT_SITE_URL } from "@/lib/config";
 
 const FEATURES = [
-  { icon: Scissors, title: "Automatic background removal", body: "An open-source segmentation model creates a real alpha mask, with soft edges where the model supports them." },
+  { icon: Scissors, title: "Automatic background removal", body: "Cut out the subject automatically, with soft edges where possible. Everything runs privately in your browser." },
   { icon: Eraser, title: "Erase & restore brushes", body: "Fix mistakes with adjustable size, hardness and opacity, plus feathering and expand/contract controls." },
   { icon: Palette, title: "New backgrounds", body: "Transparent, solid colour, linear or radial gradients, your own background photo, or a blurred original." },
   { icon: SlidersHorizontal, title: "Colour adjustments", body: "Exposure, contrast, highlights, shadows, saturation, temperature, tint and sharpness — for subject, background or everything." },
@@ -81,7 +81,7 @@ export default function HomePage() {
                   <b>Formats out:</b> PNG, JPG and WebP (AVIF when your browser can genuinely encode it).
                 </li>
                 <li>
-                  <b>First run:</b> the segmentation model (7–179 MB depending on choice) downloads once and is cached by your browser.
+                  <b>First use:</b> AI Studio prepares itself once in this browser (nothing is installed on your computer). After that, removal starts instantly.
                 </li>
               </ul>
             </div>

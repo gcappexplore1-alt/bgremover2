@@ -27,7 +27,7 @@ export default function HelpPage() {
           </h2>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-3">
             <li>Upload JPG, PNG or WebP images (drag &amp; drop, choose, or paste).</li>
-            <li>In Cutout, choose a model and press Remove background. The first run downloads the model once.</li>
+            <li>In Cutout, choose a quality and press Remove background. The first use prepares AI Studio once in this browser.</li>
             <li>Refine with the erase/restore brushes, feathering and expand/contract.</li>
             <li>Pick a background, adjust colours, resize, and add shadows.</li>
             <li>Use Export for PNG/JPG/WebP, or Compress for size-optimised files. Batch results download as a ZIP.</li>
@@ -39,8 +39,7 @@ export default function HelpPage() {
             Where your images are processed
           </h2>
           <p className="mt-3 text-ink-3">
-            Everything — decoding, background removal, editing and encoding — runs on your device in the browser. Your images are not uploaded to our server or any third-party service. The only network downloads are the
-            application itself, the segmentation runtime and the model weights, fetched from public CDNs / Hugging Face (or the site’s own model host if configured) and cached by your browser.
+            Everything — opening the photo, removing the background, editing and saving — runs on your device in the browser. Your images are not uploaded to our server. The first time you use removal, this browser prepares AI Studio (nothing is installed on your computer). After that it stays ready in this browser until you clear site data.
           </p>
         </section>
 
@@ -65,16 +64,19 @@ export default function HelpPage() {
 
         <section className="mt-8" aria-labelledby="models">
           <h2 id="models" className="text-xl font-bold text-ink-2">
-            Models &amp; licences
+            Quality options
           </h2>
           <ul className="mt-3 space-y-2 text-ink-3">
             {Object.values(MODELS).map((m) => (
               <li key={m.id}>
-                <b>{m.label}</b> — {m.id}, {m.license} licence. {m.note}
+                <b>{m.label}</b> — {m.note}
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-ink-3">Inference runtime: transformers.js / ONNX Runtime Web (Apache-2.0), WebGPU when available, otherwise WebAssembly.</p>
+          <p className="mt-3 text-ink-3">Background removal runs entirely in this browser. No extra software is installed on your computer.</p>
+          <p className="mt-2 text-xs text-muted">
+            Built on open-source technology released under the Apache-2.0 and MIT licences.
+          </p>
         </section>
 
         <section className="mt-8" aria-labelledby="limits">

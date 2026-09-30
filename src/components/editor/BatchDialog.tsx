@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Download, Loader2, RotateCw, X } from "lucide-react";
-import { MAX_OUTPUT_PIXELS, MAX_OUTPUT_SIDE } from "@/lib/config";
+import { MAX_OUTPUT_PIXELS, MAX_OUTPUT_SIDE, preparingStudioText } from "@/lib/config";
 import { downloadBlob, encodeCanvas, EXT, hasAlpha, makeZip, sanitizeName } from "@/lib/encode";
 import { validateDims } from "@/lib/imageops";
 import { resizeCanvasState, type CanvasMode } from "@/lib/layout";
@@ -54,7 +54,11 @@ export default function BatchDialog({ open, onClose }: { open: boolean; onClose:
         const id = newId();
         job.current = id;
         const img = ctx2d(r.working!).getImageData(0, 0, r.ww, r.wh);
-        mask = await segment(id, img, e.model, (s) => setS(p.id, "processing", s.kind === "inference" ? "Removing background…" : s.kind === "queued" ? "Queued" : "Loading model…"));
+        mask = await segment(id, img, e.model, (s) => {
+          if (s.kind === "inference") setS(p.id, "processing", "Removing background…");
+          else if (s.kind === "model" && s.total) setS(p.id, "processing", preparingStudioText(((s.loaded ?? 0) / s.total) * 100));
+          else setS(p.id, "processing", preparingStudioText(0));
+        });
         job.current = null;
       }
       if (cancelled.current) throw new DOMException("Cancelled", "AbortError");

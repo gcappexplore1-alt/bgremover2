@@ -1,10 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { MAX_BATCH, type ModelKey } from "@/lib/config";
+import { MAX_BATCH, preparingStudioText, type ModelKey } from "@/lib/config";
 import { History, type MaskReserve, type ShadowEraseSnap, type Snapshot } from "@/lib/history";
 import { hasUserEdits, resampleMask, transformMaskForInput, type MaskRect } from "@/lib/imageops";
 import { ingestFile, pendingFiles } from "@/lib/ingest";
 import { ctx2d, Renderer } from "@/lib/render";
-import { cancelSegment, segment, type SegStage } from "@/lib/segmentation";
+import { cancelSegment, segment, warmupModel, type SegStage } from "@/lib/segmentation";
 import { getMeta, setMeta } from "@/lib/storage";
 import { inputKey, newId, type InputTransform, type Project, type ProjectState } from "@/lib/types";
 import { formatBytes, validateAndDecode } from "@/lib/validate";
@@ -39,17 +39,16 @@ export interface Brush {
 }
 
 function stageText(s: SegStage, files: Map<string, [number, number]>): { text: string; pct?: number } {
-  if (s.kind === "queued") return { text: "Queued" };
-  if (s.kind === "inference") return { text: `Removing background${s.device ? ` (${s.device === "webgpu" ? "WebGPU" : "WebAssembly"})` : ""}…` };
-  if (s.file && s.total) files.set(s.file, [s.loaded ?? 0, s.total]);
+  if (s.kind === "inference") return { text: "Removing background…" };
+  if (s.kind === "model" && s.file && s.total) files.set(s.file, [s.loaded ?? 0, s.total]);
   let l = 0,
     t = 0;
   files.forEach(([a, b]) => {
     l += a;
     t += b;
   });
-  if (t > 0 && l < t) return { text: `Downloading model… ${formatBytes(l)} of ${formatBytes(t)}`, pct: Math.round((l / t) * 100) };
-  return { text: `Loading model${s.device ? ` (${s.device === "webgpu" ? "WebGPU" : "WebAssembly"})` : ""}…` };
+  const pct = t > 0 ? Math.min(99, Math.round((l / t) * 100)) : 0;
+  return { text: preparingStudioText(pct), pct };
 }
 
 /**
@@ -87,6 +86,38 @@ export function useEditorStore() {
   const blobs = useRef(new Map<string, Blob>());
   const segJob = useRef<string | null>(null);
   const openSeq = useRef(0);
+  const prepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prepStarted = useRef(0);
+  const prepReal = useRef(0);
+
+  const stopPrepTimer = useCallback(() => {
+    if (prepTimer.current) {
+      clearInterval(prepTimer.current);
+      prepTimer.current = null;
+    }
+  }, []);
+
+  const startPrepTimer = useCallback(
+    (jobId: string) => {
+      stopPrepTimer();
+      prepStarted.current = Date.now();
+      prepReal.current = 0;
+      prepTimer.current = setInterval(() => {
+        if (segJob.current !== jobId) {
+          stopPrepTimer();
+          return;
+        }
+        const elapsed = (Date.now() - prepStarted.current) / 1000;
+        const estimated = Math.min(95, Math.round(100 * (1 - Math.exp(-elapsed / 16))));
+        const pct = Math.max(prepReal.current, estimated);
+        setSeg((cur) => {
+          if (!cur || cur.status === "inference" || cur.status === "done" || cur.status === "failed" || cur.status === "cancelled") return cur;
+          return { ...cur, pct, text: preparingStudioText(pct) };
+        });
+      }, 250);
+    },
+    [stopPrepTimer],
+  );
 
   const setState = useCallback((s: ProjectState) => {
     stateRef.current = s;
@@ -273,6 +304,7 @@ export function useEditorStore() {
       const room = MAX_BATCH - items.length;
       const list = files.slice(0, Math.max(0, room));
       if (files.length > list.length) say(`Only ${MAX_BATCH} images can be open at once; ${files.length - list.length} file(s) were skipped.`);
+      if (list.length) warmupModel(model);
       let first = true;
       for (const f of list) {
         const row: UploadRow = { id: newId(), name: f.name, size: f.size, status: "reading", file: f, abort: new AbortController() };
@@ -295,8 +327,13 @@ export function useEditorStore() {
         }
       }
     },
-    [items.length, open, say],
+    [items.length, open, say, model],
   );
+
+  const chooseModel = useCallback((key: ModelKey) => {
+    setModel(key);
+    warmupModel(key);
+  }, []);
 
   const retryUpload = useCallback(
     (id: string) => {
@@ -458,13 +495,23 @@ export function useEditorStore() {
     const img = ctx2d(renderer.working).getImageData(0, 0, renderer.ww, renderer.wh);
     patchItem(p.id, { status: "processing", error: undefined });
     say("Background removal started");
+    startPrepTimer(jobId);
+    setSeg({ status: "queued", text: preparingStudioText(0), pct: 0 });
     try {
       const mask = await segment(jobId, img, model, (st) => {
         if (segJob.current !== jobId) return;
-        const { text, pct } = stageText(st, files);
-        setSeg({ status: st.kind, text, pct });
+        if (st.kind === "inference") {
+          stopPrepTimer();
+          setSeg({ status: "inference", text: "Removing background…" });
+          return;
+        }
+        const { pct } = stageText(st, files);
+        if (typeof pct === "number") prepReal.current = Math.max(prepReal.current, pct);
+        const shown = Math.max(prepReal.current, pct ?? 0);
+        setSeg({ status: st.kind, text: preparingStudioText(shown), pct: shown });
       });
       if (segJob.current !== jobId || projectRef.current?.id !== p.id || inputKey(stateRef.current!.input) !== key) return; // stale
+      stopPrepTimer();
       segJob.current = null;
       const before = renderer.mask,
         beforeAuto = autoMask.current,
@@ -494,6 +541,7 @@ export function useEditorStore() {
       say("Background removed");
     } catch (e) {
       if (segJob.current !== jobId && !(e instanceof DOMException)) return;
+      stopPrepTimer();
       const cancelled = e instanceof DOMException && e.name === "AbortError";
       if (segJob.current === jobId) segJob.current = null;
       const msg = cancelled ? "Cancelled. No changes were made." : e instanceof Error ? e.message : String(e);
@@ -501,11 +549,12 @@ export function useEditorStore() {
       patchItem(p.id, { status: cancelled ? "cancelled" : "failed", error: msg });
       say(cancelled ? "Background removal cancelled" : "Background removal failed");
     }
-  }, [renderer, model, patchItem, say, setProj, pushMaskHistory]);
+  }, [renderer, model, patchItem, say, setProj, pushMaskHistory, startPrepTimer, stopPrepTimer]);
 
   const cancelRemoval = useCallback(() => {
+    stopPrepTimer();
     if (segJob.current) cancelSegment(segJob.current);
-  }, []);
+  }, [stopPrepTimer]);
 
   const resetMask = useCallback(() => {
     if (!autoMask.current) return;
@@ -685,7 +734,7 @@ export function useEditorStore() {
     swatches,
     saveSwatch,
     model,
-    setModel,
+    setModel: chooseModel,
     begin,
     update,
     end,

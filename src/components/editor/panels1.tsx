@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Brush, Eraser, Hand, ImagePlus, Loader2, RotateCcw, Sparkles, XCircle } from "lucide-react";
-import { ACCEPT_ATTR, MODELS, type ModelKey } from "@/lib/config";
+import { ACCEPT_ATTR, MODELS, STUDIO_PRIVACY_LINE, type ModelKey } from "@/lib/config";
 import { segmentationSupported } from "@/lib/segmentation";
 import { inputKey, ZERO_ADJ, type Adjustments, type BgType, type ProjectState } from "@/lib/types";
 import { Button, ColorField, Hint, Section, Segmented, Select, Slider, Toggle } from "../ui";
@@ -37,10 +37,10 @@ export function CutoutPanel() {
         ) : (
           <>
             <Select
-              label="Model"
+              label="Quality"
               value={e.model}
               onChange={e.setModel}
-              options={(Object.keys(MODELS) as ModelKey[]).map((k) => ({ value: k, label: `${MODELS[k].label} · ${MODELS[k].license}` }))}
+              options={(Object.keys(MODELS) as ModelKey[]).map((k) => ({ value: k, label: MODELS[k].label }))}
             />
             <p className="text-xs text-muted">{MODELS[e.model].note}</p>
             {busy ? (
@@ -63,6 +63,7 @@ export function CutoutPanel() {
                     <div className="h-full bg-brand transition-[width]" style={{ width: `${e.seg.pct}%` }} />
                   </div>
                 )}
+                {busy && <p className="text-xs leading-relaxed text-muted">{STUDIO_PRIVACY_LINE}</p>}
                 {e.seg.status === "failed" && (
                   <Button size="sm" onClick={e.runRemoval}>
                     Retry
@@ -70,6 +71,7 @@ export function CutoutPanel() {
                 )}
               </div>
             )}
+            {!e.seg && <p className="text-xs leading-relaxed text-muted">{STUDIO_PRIVACY_LINE}</p>}
             {stale && <Hint tone="warn">The input was changed after the cutout was made. Run removal again for the best result.</Hint>}
           </>
         )}

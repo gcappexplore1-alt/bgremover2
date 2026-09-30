@@ -8,10 +8,13 @@ export default function UploadDrop({
   onFiles,
   compact = false,
   listenPaste = true,
+  onIntent,
 }: {
   onFiles: (f: File[]) => void;
   compact?: boolean;
   listenPaste?: boolean;
+  /** Fired on hover / drag-over so the studio can warm up in the background. */
+  onIntent?: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
@@ -41,9 +44,11 @@ export default function UploadDrop({
 
   return (
     <div
+      onPointerEnter={() => onIntent?.()}
       onDragOver={(e) => {
         e.preventDefault();
         setOver(true);
+        onIntent?.();
       }}
       onDragLeave={() => setOver(false)}
       onDrop={(e) => {

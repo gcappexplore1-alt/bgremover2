@@ -28,28 +28,39 @@ export const MAX_BATCH = num(env.VITE_MAX_BATCH, 20);
 /** Base URL for model weights. Defaults to the Hugging Face hub; set to your own host to self-host. */
 export const MODEL_HOST: string = env.VITE_MODEL_HOST || "";
 
+/** Shown under the Remove background progress — never mention downloads, file size or runtimes. */
+export const STUDIO_PRIVACY_LINE = "Runs 100% privately in your browser. No software is installed on your computer.";
+
+/** Status line while AI Studio is getting ready. Always includes a percentage so wait time is visible. */
+export function preparingStudioText(pct: number): string {
+  const n = Math.max(0, Math.min(99, Math.round(pct)));
+  return `Preparing AI Studio for first use (only happens once)… ${n}%`;
+}
+
 export const MODELS = {
   general: {
     id: "BritishWerewolf/IS-Net",
     kind: "isnet",
-    label: "General (IS-Net)",
-    note: "People, products, animals and objects. ~179 MB one-time download, cached by your browser.",
+    label: "Standard — products, people & objects",
+    note: "Recommended for most photos. Prepared once in this browser, then ready instantly.",
     license: "Apache-2.0",
     webgpuOnly: false,
   },
   portrait: {
     id: "Xenova/modnet",
     kind: "pipeline",
-    label: "Fast portrait (MODNet)",
-    note: "Optimised for people/portraits only. ~7–13 MB download.",
+    label: "Quick — head & shoulders",
+    note: "Fastest option, for selfies and head-and-shoulders portraits. For full-body photos and products, use Standard.",
     license: "Apache-2.0",
     webgpuOnly: false,
   },
   detail: {
-    id: "onnx-community/BiRefNet_lite-ONNX",
-    kind: "pipeline",
-    label: "High detail (BiRefNet-lite, WebGPU)",
-    note: "Finer edges; needs a WebGPU-capable browser/GPU (≈115 MB fp16). Too memory-hungry for WebAssembly.",
+    // BiRefNet-lite (same weights as onnx-community/BiRefNet_lite-ONNX) with the graph rewritten so it runs
+    // on WebGPU. The upstream export exceeds Chrome's storage-buffer limit and OOMs on the CPU fallback.
+    id: "jiabins0303/birefnet-lite-1024-webgpu",
+    kind: "birefnet",
+    label: "Fine detail — hair & edges",
+    note: "Sharpest edges; takes a few seconds. Needs a recent Chrome or Edge with graphics acceleration.",
     license: "MIT",
     webgpuOnly: true,
   },

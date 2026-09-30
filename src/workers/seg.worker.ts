@@ -31,15 +31,66 @@ async function lib() {
   return tf;
 }
 
+let gpuStorageBuffers = 0;
+
 async function pickDevice() {
   if (device) return device;
   try {
     const gpu = self.navigator && self.navigator.gpu;
-    device = gpu && (await gpu.requestAdapter()) ? "webgpu" : "wasm";
+    const adapter = gpu ? await gpu.requestAdapter() : null;
+    if (adapter) gpuStorageBuffers = (adapter.limits && adapter.limits.maxStorageBuffersPerShaderStage) || 8;
+    device = adapter ? "webgpu" : "wasm";
   } catch (e) {
     device = "wasm";
   }
   return device;
+}
+
+const BIREFNET_SIZE = 1024;
+const BIREFNET_MEAN = [0.485, 0.456, 0.406];
+const BIREFNET_STD = [0.229, 0.224, 0.225];
+
+function sigmoid(v) {
+  return 1 / (1 + Math.exp(-v));
+}
+
+// BiRefNet-lite (WebGPU-rewritten export): resize to 1024x1024, ImageNet-normalise, emits logits -> sigmoid.
+async function loadBirefnet(modelId, dev, progress_callback) {
+  const T = await lib();
+  const model = await T.AutoModel.from_pretrained(modelId, {
+    config: { model_type: "custom" },
+    device: dev,
+    dtype: "fp32", // file is already fp16; this stops the library appending a dtype suffix
+    model_file_name: "model_fp16",
+    progress_callback: progress_callback,
+  });
+  return async function (img) {
+    const S = BIREFNET_SIZE;
+    const r = await img.resize(S, S);
+    const px = new Float32Array(3 * S * S);
+    for (let i = 0; i < S * S; i++)
+      for (let c = 0; c < 3; c++) px[c * S * S + i] = (r.data[i * 3 + c] / 255 - BIREFNET_MEAN[c]) / BIREFNET_STD[c];
+    let out;
+    try {
+      out = await model({ input_image: new T.Tensor("float32", px, [1, 3, S, S]) });
+    } catch (e) {
+      const msg = e && e.message ? e.message : String(e);
+      if (/float16|data ?type|tensor type/i.test(msg) && typeof Float16Array !== "undefined") {
+        out = await model({ input_image: new T.Tensor("float16", Float16Array.from(px), [1, 3, S, S]) });
+      } else throw e;
+    }
+    const outs = Object.values(out);
+    let o = outs[outs.length - 1];
+    for (const t of outs) {
+      const d = t.dims || [];
+      if (d[d.length - 1] === S && d[d.length - 2] === S) o = t;
+    }
+    const d = o.data;
+    const m8 = new Uint8ClampedArray(S * S);
+    for (let i = 0; i < S * S; i++) m8[i] = sigmoid(Number(d[i])) * 255;
+    const mask = await new T.RawImage(m8, S, S, 1).resize(img.width, img.height);
+    return new Uint8Array(mask.data);
+  };
 }
 
 const ISNET_SIZE = 1024;
@@ -76,18 +127,47 @@ async function loadIsnet(modelId, dev, progress_callback) {
   };
 }
 
+// A usable matte has a clear subject and a clear background. Degenerate output (almost all
+// foreground, almost all background, or mostly half-transparent mush) means the precision or
+// backend failed, not that the photo is hard.
+function maskLooksBroken(mask) {
+  let fg = 0, bg = 0, mid = 0;
+  for (let i = 0; i < mask.length; i++) {
+    const a = mask[i];
+    if (a > 239) fg++;
+    else if (a < 16) bg++;
+    else mid++;
+  }
+  const n = mask.length || 1;
+  return fg / n < 0.005 || bg / n < 0.005 || mid / n > 0.5;
+}
+
 async function loadPipeline(modelId, dev, progress_callback) {
   const T = await lib();
   const isModnet = modelId.includes("modnet");
-  const dtype = dev === "webgpu" ? "fp16" : isModnet ? "q8" : "fp32";
-  const pipe = await T.pipeline("background-removal", modelId, { device: dev, dtype: dtype, progress_callback: progress_callback });
+  // MODNet's fp16 export produces noisy, partially inverted mattes on WebGPU (the model is tiny,
+  // so full precision costs little). q8 was the configuration verified in Node on WASM.
+  const dtype = isModnet ? (dev === "webgpu" ? "fp32" : "q8") : dev === "webgpu" ? "fp16" : "fp32";
+  const build = async function (d, dt) {
+    const pipe = await T.pipeline("background-removal", modelId, { device: d, dtype: dt, progress_callback: progress_callback });
+    return async function (img) {
+      const out = await pipe(img);
+      const res = Array.isArray(out) ? out[0] : out;
+      if (!res || res.channels !== 4 || res.width !== img.width || res.height !== img.height) throw new Error("The model returned an unexpected mask shape.");
+      const mask = new Uint8Array(img.width * img.height);
+      for (let i = 0; i < mask.length; i++) mask[i] = res.data[i * 4 + 3];
+      return mask;
+    };
+  };
+  const primary = await build(dev, dtype);
+  let fallback = null;
   return async function (img) {
-    const out = await pipe(img);
-    const res = Array.isArray(out) ? out[0] : out;
-    if (!res || res.channels !== 4 || res.width !== img.width || res.height !== img.height) throw new Error("The model returned an unexpected mask shape.");
-    const mask = new Uint8Array(img.width * img.height);
-    for (let i = 0; i < mask.length; i++) mask[i] = res.data[i * 4 + 3];
-    return mask;
+    const mask = await primary(img);
+    if (!maskLooksBroken(mask)) return mask;
+    // Precision/backend failure: retry once at full precision on the CPU path.
+    if (!fallback) fallback = await build("wasm", isModnet ? "q8" : "fp32");
+    const again = await fallback(img);
+    return maskLooksBroken(again) ? mask : again;
   };
 }
 
@@ -97,13 +177,15 @@ async function getRunner(m) {
   if (!runners.has(m.modelId)) {
     const p = (async function () {
       const dev = await pickDevice();
-      if (m.webgpuOnly && dev !== "webgpu")
-        throw new Error("This model needs WebGPU, which isn't available in this browser. Choose the General (IS-Net) model instead.");
+      if (m.webgpuOnly && (dev !== "webgpu" || gpuStorageBuffers < 8))
+        throw new Error("Fine detail isn’t available in this browser. Choose Standard instead.");
       const progress_callback = function (p) {
         if (p && p.status === "progress" && p.total) self.postMessage({ type: "progress", id: m.id, file: p.file, loaded: p.loaded, total: p.total });
       };
       const load = function (d) {
-        return m.kind === "isnet" ? loadIsnet(m.modelId, d, progress_callback) : loadPipeline(m.modelId, d, progress_callback);
+        if (m.kind === "isnet") return loadIsnet(m.modelId, d, progress_callback);
+        if (m.kind === "birefnet") return loadBirefnet(m.modelId, d, progress_callback);
+        return loadPipeline(m.modelId, d, progress_callback);
       };
       self.postMessage({ type: "stage", id: m.id, stage: "model", device: dev });
       try {
@@ -127,6 +209,10 @@ self.onmessage = async function (e) {
   const m = e.data;
   try {
     const run = await getRunner(m);
+    if (m.type === "warmup") {
+      self.postMessage({ type: "ready", id: m.id });
+      return;
+    }
     const T = await lib();
     self.postMessage({ type: "stage", id: m.id, stage: "inference", device: device });
     const mask = await run(new T.RawImage(new Uint8ClampedArray(m.rgb), m.width, m.height, 3));

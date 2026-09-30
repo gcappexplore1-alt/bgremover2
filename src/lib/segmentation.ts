@@ -25,10 +25,14 @@ let worker: Worker | null = null;
 let running: Job | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;
 const queue: Job[] = [];
+/** Models currently being prepared in the background (no UI). */
+const warming = new Set<ModelKey>();
+/** Models already loaded into this tab’s worker. */
+const ready = new Set<ModelKey>();
 
 export function segmentationSupported(): string | null {
-  if (typeof Worker === "undefined") return "Web Workers are not available in this browser.";
-  if (typeof WebAssembly === "undefined") return "WebAssembly is not available in this browser, so the segmentation model cannot run.";
+  if (typeof Worker === "undefined") return "Background removal isn’t available in this browser.";
+  if (typeof WebAssembly === "undefined") return "Background removal isn’t available in this browser.";
   return null;
 }
 
@@ -37,6 +41,12 @@ function getWorker(): Worker {
     worker = createSegWorker();
     worker.onmessage = (e: MessageEvent) => {
       const m = e.data;
+      if (typeof m?.id === "string" && m.id.startsWith("warmup:")) {
+        const key = m.id.slice("warmup:".length) as ModelKey;
+        warming.delete(key);
+        if (m.type === "ready") ready.add(key);
+        return;
+      }
       if (!running || m.id !== running.id) return; // stale
       if (m.type === "progress") running.onStage({ kind: "model", loaded: m.loaded, total: m.total, file: m.file });
       else if (m.type === "stage") {
@@ -54,10 +64,11 @@ function getWorker(): Worker {
 }
 
 function friendly(msg: string): string {
+  if (/WebGPU/i.test(msg)) return "Fine detail isn’t available in this browser. Choose Standard instead.";
   if (/fetch|network|Failed to load|404|ERR_|import/i.test(msg))
-    return `The model files could not be downloaded (${msg}). Check your connection or content blockers, then retry.`;
+    return "Couldn’t get the studio ready. Check your connection or content blockers, then retry.";
   if (/memory|allocation|OOM|RangeError/i.test(msg))
-    return "The device ran out of memory while running the model. Reduce the working size (Resize → Image) and retry, or try the Fast portrait model.";
+    return "This device ran out of memory. Reduce the image size (Resize → Image) and retry, or try the Quick option.";
   return `Background removal failed: ${msg}`;
 }
 
@@ -72,6 +83,8 @@ function armTimeout() {
 function killWorker() {
   worker?.terminate();
   worker = null;
+  warming.clear();
+  ready.clear();
 }
 
 function finish(err: Error | null, mask?: Uint8Array) {
@@ -121,6 +134,23 @@ export function segment(id: string, img: ImageData, model: ModelKey, onStage: (s
     onStage({ kind: "queued" });
     pump();
   });
+}
+
+/**
+ * Start preparing the default studio in the background (on homepage hover / drop).
+ * Silent: no UI, no inference. A later Remove background call reuses the same worker.
+ */
+export function warmupModel(model: ModelKey = "general") {
+  if (typeof window === "undefined") return;
+  if (segmentationSupported()) return;
+  if (ready.has(model) || warming.has(model)) return;
+  warming.add(model);
+  const md = MODELS[model];
+  try {
+    getWorker().postMessage({ type: "warmup", id: `warmup:${model}`, modelId: md.id, kind: md.kind, webgpuOnly: md.webgpuOnly, host: MODEL_HOST });
+  } catch {
+    warming.delete(model);
+  }
 }
 
 /** Cancel a queued or running job. A running job is truly stopped by terminating the worker. */

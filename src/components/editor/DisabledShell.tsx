@@ -1,5 +1,5 @@
 import { ArrowLeftRight, Brush, Columns2, Eraser, Hand, Maximize, Minus, Plus } from "lucide-react";
-import { MODELS } from "@/lib/config";
+import { MODELS, STUDIO_PRIVACY_LINE } from "@/lib/config";
 import { Button, Hint, Section, Slider, Toggle } from "../ui";
 import { BeforeIcon } from "./Viewport";
 
@@ -91,15 +91,15 @@ export function DisabledCutoutPanel() {
       <Hint>Upload an image to enable these editing tools.</Hint>
       <Section title="Automatic removal">
         <label className="block text-xs text-ink-3">
-          Model
+          Quality
           <select
             disabled
-            aria-label="Model (disabled — upload an image to enable)"
+            aria-label="Quality (disabled — upload an image to enable)"
             className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {Object.entries(MODELS).map(([k, m]) => (
               <option key={k} value={k}>
-                {m.label} · {m.license}
+                {m.label}
               </option>
             ))}
           </select>
@@ -108,6 +108,7 @@ export function DisabledCutoutPanel() {
         <Button variant="accent" size="lg" className="w-full" disabled>
           Remove background
         </Button>
+        <p className="text-xs leading-relaxed text-muted">{STUDIO_PRIVACY_LINE}</p>
       </Section>
       <Section title="Manual refinement">
         <div role="radiogroup" aria-label="Brush mode" className="flex flex-wrap gap-1 rounded-xl border border-[#e3e9ff] bg-[#eef2ff] p-1">

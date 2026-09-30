@@ -646,7 +646,7 @@ export default function Viewport() {
             {showScan && (
               <div role="status" className="pointer-events-none absolute left-1/2 top-3 flex max-w-[90%] -translate-x-1/2 items-center gap-2 rounded-full bg-ink-2/85 py-1 pl-3 pr-3 text-[11px] font-medium text-white shadow-lg">
                 <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden />
-                <span className="truncate">{seg?.pct !== undefined ? `${seg.text} · ${seg.pct}%` : (seg?.text ?? "Working…")}</span>
+                <span className="truncate">{seg?.text ?? "Working…"}</span>
               </div>
             )}
           </>
