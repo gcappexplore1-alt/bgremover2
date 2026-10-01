@@ -19,7 +19,6 @@ const TRANSFORMERS_URL = `https://cdn.jsdelivr.net/npm/@huggingface/transformers
 
 const WORKER_BODY = `
 let tf = null;
-let device = null;
 const runners = new Map();
 
 async function lib() {
@@ -31,19 +30,33 @@ async function lib() {
   return tf;
 }
 
+// GPU availability is probed once and never "poisoned" by one model falling back to the CPU:
+// a fallback is recorded per model (wasmOnly), so other models still get WebGPU.
+let gpuProbed = false;
+let hasGpu = false;
 let gpuStorageBuffers = 0;
+const wasmOnly = new Set();
+const runnerDevice = new Map();
 
-async function pickDevice() {
-  if (device) return device;
+async function probeGpu() {
+  if (gpuProbed) return hasGpu;
+  gpuProbed = true;
   try {
     const gpu = self.navigator && self.navigator.gpu;
     const adapter = gpu ? await gpu.requestAdapter() : null;
-    if (adapter) gpuStorageBuffers = (adapter.limits && adapter.limits.maxStorageBuffersPerShaderStage) || 8;
-    device = adapter ? "webgpu" : "wasm";
+    if (adapter) {
+      hasGpu = true;
+      gpuStorageBuffers = (adapter.limits && adapter.limits.maxStorageBuffersPerShaderStage) || 8;
+    }
   } catch (e) {
-    device = "wasm";
+    hasGpu = false;
   }
-  return device;
+  return hasGpu;
+}
+
+async function pickDevice(modelId) {
+  const gpu = await probeGpu();
+  return gpu && !wasmOnly.has(modelId) ? "webgpu" : "wasm";
 }
 
 const BIREFNET_SIZE = 1024;
@@ -176,9 +189,11 @@ async function getRunner(m) {
   if (m.host) T.env.remoteHost = m.host;
   if (!runners.has(m.modelId)) {
     const p = (async function () {
-      const dev = await pickDevice();
-      if (m.webgpuOnly && (dev !== "webgpu" || gpuStorageBuffers < 8))
-        throw new Error("Fine detail isn’t available in this browser. Choose Standard instead.");
+      const dev = await pickDevice(m.modelId);
+      if (m.webgpuOnly) {
+        if (!hasGpu) throw new Error("Fine detail needs graphics acceleration (WebGPU), which this browser isn’t providing. Try the latest Chrome or Edge, or choose Standard.");
+        if (gpuStorageBuffers < 8) throw new Error("Fine detail isn’t supported by this computer’s graphics card. Choose Standard instead.");
+      }
       const progress_callback = function (p) {
         if (p && p.status === "progress" && p.total) self.postMessage({ type: "progress", id: m.id, file: p.file, loaded: p.loaded, total: p.total });
       };
@@ -189,12 +204,16 @@ async function getRunner(m) {
       };
       self.postMessage({ type: "stage", id: m.id, stage: "model", device: dev });
       try {
-        return await load(dev);
+        const r = await load(dev);
+        runnerDevice.set(m.modelId, dev);
+        return r;
       } catch (e) {
         if (dev !== "webgpu" || m.webgpuOnly) throw e;
-        device = "wasm";
+        wasmOnly.add(m.modelId);
         self.postMessage({ type: "stage", id: m.id, stage: "model", device: "wasm" });
-        return await load("wasm");
+        const r = await load("wasm");
+        runnerDevice.set(m.modelId, "wasm");
+        return r;
       }
     })();
     p.catch(function () {
@@ -214,9 +233,10 @@ self.onmessage = async function (e) {
       return;
     }
     const T = await lib();
-    self.postMessage({ type: "stage", id: m.id, stage: "inference", device: device });
+    const dev = runnerDevice.get(m.modelId) || null;
+    self.postMessage({ type: "stage", id: m.id, stage: "inference", device: dev });
     const mask = await run(new T.RawImage(new Uint8ClampedArray(m.rgb), m.width, m.height, 3));
-    self.postMessage({ type: "done", id: m.id, mask: mask.buffer, device: device }, [mask.buffer]);
+    self.postMessage({ type: "done", id: m.id, mask: mask.buffer, device: dev }, [mask.buffer]);
   } catch (err) {
     self.postMessage({ type: "error", id: m.id, error: err instanceof Error ? err.message : String(err) });
   }
